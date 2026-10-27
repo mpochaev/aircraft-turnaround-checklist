@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Журнал действий</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page" id="page">
+    <div class="page-header"><h1>Журнал действий</h1></div>
+    <div class="toolbar">
+        <label>Дата <input type="date" class="input" id="date"></label>
+        <label>Пользователь <input class="input" id="user" placeholder="логин"></label>
+        <label>Оборот <input class="input" id="turnaround" placeholder="№" size="6"></label>
+        <button class="btn" id="apply">Показать</button>
+        <span class="muted small" id="total"></span>
+    </div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Оборот</th><th>Было</th><th>Стало</th></tr></thead>
+            <tbody id="rows"></tbody>
+        </table>
+    </div>
+    <p class="wip">Фильтр по действию, период до 31 дня и постраничный вывод добавляет команда «Данные»: спецификация API, раздел 8.1.</p>
+</main>
+<script type="module">
+    import { startPage, showError } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, today, escapeHtml } from '/js/format.js';
+
+    await startPage({ active: 'log' });
+    document.getElementById('date').value = today();
+    const json = (v) => (v ? escapeHtml(JSON.stringify(v)) : '');
+
+    async function load() {
+        try {
+            const data = await api.get('/log', {
+                date: document.getElementById('date').value,
+                user: document.getElementById('user').value.trim(),
+                turnaroundId: document.getElementById('turnaround').value.trim(),
+            });
+            document.getElementById('total').textContent = `записей: ${data.total}`;
+            document.getElementById('rows').innerHTML = data.items.map((r) => `
+                <tr>
+                    <td class="nowrap">${time(r.time)}:${r.time.substring(17, 19)}</td>
+                    <td>${escapeHtml(r.user)}</td>
+                    <td>${escapeHtml(r.actionType)}</td>
+                    <td class="nowrap">${escapeHtml(r.entity ?? '')} ${r.entityId ?? ''}</td>
+                    <td class="center">${r.turnaroundId ? `<a href="/technician/checklist.html?id=${r.turnaroundId}">${r.turnaroundId}</a>` : ''}</td>
+                    <td class="small mono">${json(r.oldValue)}</td>
+                    <td class="small mono">${json(r.newValue)}</td>
+                </tr>`).join('') || '<tr><td colspan="7" class="center muted">Записей нет</td></tr>';
+        } catch (e) {
+            showError(document.getElementById('page'), e);
+        }
+    }
+    document.getElementById('apply').addEventListener('click', load);
+    load();
+</script>
+</body>
+</html>

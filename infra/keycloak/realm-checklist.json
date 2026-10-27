@@ -1,0 +1,75 @@
+{
+  "realm": "checklist",
+  "displayName": "Цифровой чек-лист",
+  "enabled": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["ru"],
+  "defaultLocale": "ru",
+  "loginWithEmailAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "passwordPolicy": "length(8) and digits(1)",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 900,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "ssoSessionIdleTimeout": 2700,
+  "ssoSessionMaxLifespan": 43200,
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      { "name": "technician", "description": "Техник" },
+      { "name": "supervisor", "description": "Супервайзер" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "checklist-web",
+      "name": "Цифровой чек-лист: страницы",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:8080/*"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      }
+    },
+    {
+      "clientId": "checklist-tools",
+      "name": "Postman и автотесты API (вход по логину и паролю)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "sup01", "firstName": "Анна", "lastName": "Петрова", "email": "sup01@checklist.local",
+      "enabled": true, "emailVerified": true, "realmRoles": ["supervisor"],
+      "credentials": [{ "type": "password", "value": "Demo-2026", "temporary": false }]
+    },
+    {
+      "username": "sup02", "firstName": "Олег", "lastName": "Смирнов", "email": "sup02@checklist.local",
+      "enabled": true, "emailVerified": true, "realmRoles": ["supervisor"],
+      "credentials": [{ "type": "password", "value": "Demo-2026", "temporary": false }]
+    },
+    {
+      "username": "tech07", "firstName": "Пётр", "lastName": "Иванов", "email": "tech07@checklist.local",
+      "enabled": true, "emailVerified": true, "realmRoles": ["technician"],
+      "credentials": [{ "type": "password", "value": "Demo-2026", "temporary": false }]
+    },
+    {
+      "username": "tech12", "firstName": "Дмитрий", "lastName": "Кузнецов", "email": "tech12@checklist.local",
+      "enabled": true, "emailVerified": true, "realmRoles": ["technician"],
+      "credentials": [{ "type": "password", "value": "Demo-2026", "temporary": false }]
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Справочники</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page" id="page">
+    <div class="page-header">
+        <h1>Справочники</h1>
+        <div class="actions">
+            <button class="btn" disabled title="Делает команда «Справочники»: POST /ref/{dictionary}">Добавить</button>
+        </div>
+    </div>
+    <div class="split">
+        <ul class="list" id="dicts"></ul>
+        <div>
+            <div class="toolbar">
+                <label><input type="checkbox" id="inactive"> показать деактивированные</label>
+                <span class="muted small" id="total"></span>
+            </div>
+            <div class="table-wrap"><table class="table" id="table"></table></div>
+        </div>
+    </div>
+    <p class="wip">Добавление, изменение и деактивацию записей делает команда «Справочники»: спецификация API, разделы 6.2, 6.3, 10.7.</p>
+</main>
+<script type="module">
+    import { startPage, showError } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { escapeHtml } from '/js/format.js';
+
+    await startPage({ active: 'ref' });
+    const NAMES = {
+        airports: 'Аэропорты', airlines: 'Авиакомпании', stands: 'Стоянки', 'aircraft-types': 'Типы ВС',
+        aircraft: 'Воздушные суда', operations: 'Наземные операции', 'operation-norms': 'Нормативы операций',
+        'delay-codes': 'Коды задержек',
+    };
+    let current = 'airports';
+
+    const { items } = await api.get('/ref');
+    const list = document.getElementById('dicts');
+    list.innerHTML = items.map((d) => `<li data-d="${d}">${NAMES[d] || d}</li>`).join('');
+    list.addEventListener('click', (e) => {
+        const li = e.target.closest('li[data-d]');
+        if (li) { current = li.dataset.d; load(); }
+    });
+    document.getElementById('inactive').addEventListener('change', load);
+
+    async function load() {
+        list.querySelectorAll('li').forEach((li) => li.classList.toggle('selected', li.dataset.d === current));
+        try {
+            const data = await api.get(`/ref/${current}`, { isActive: document.getElementById('inactive').checked ? 'all' : 'true' });
+            const cols = data.items.length ? Object.keys(data.items[0]).filter((c) => c !== 'id') : [];
+            document.getElementById('total').textContent = `записей: ${data.total}`;
+            document.getElementById('table').innerHTML = `
+                <thead><tr>${cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+                <tbody>${data.items.map((r) => `<tr>${cols.map((c) => `<td>${
+                    typeof r[c] === 'boolean' ? (r[c] ? 'да' : 'нет') : escapeHtml(r[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>`;
+        } catch (e) {
+            showError(document.getElementById('page'), e);
+        }
+    }
+    load();
+</script>
+</body>
+</html>

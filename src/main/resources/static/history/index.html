@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>История</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page">
+    <div class="page-header"><h1>История</h1></div>
+    <div class="wip">
+        <p><b>Страница в разработке. Команда «Данные».</b></p>
+        <p>Что должно быть на экране: закрытые и отменённые обороты с фильтром по дате, борту и номеру рейса, показатели за период (ФТ-43, ФТ-44).</p>
+        <p>Методы API: GET /turnarounds?status=closed,cancelled, GET /metrics (спецификация 7.3, 8.2).</p>
+        <p>Макет: документ «Макеты интерфейса», рисунок 11. Компоненты и правила оформления: <a href="/styleguide.html">/styleguide.html</a>.</p>
+    </div>
+</main>
+<script type="module">
+    import { startPage } from '/js/layout.js';
+    await startPage({ active: 'history' });
+</script>
+</body>
+</html>

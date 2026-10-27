@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Дизайн-система</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+    <style>
+        .sg-section { margin-bottom: 40px; max-width: 1100px; }
+        .sg-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: var(--sp-3) 0; }
+        .sg-swatch { width: 150px; border: var(--border); font-size: var(--fs-small); }
+        .sg-swatch div { height: 48px; border-bottom: var(--border); }
+        .sg-swatch p { margin: var(--sp-2); }
+        .sg-code { font-family: var(--font-mono); font-size: var(--fs-small); background: var(--c-surface); padding: 1px 4px; }
+        .sg-touch { border: var(--border); padding: var(--sp-4); }
+    </style>
+</head>
+<body>
+<header class="app-header">
+    <nav class="app-nav"><a href="#" class="active">Обороты</a><a href="#">Справочники</a><a href="#">Пользователи</a><a href="#">Журнал</a><a href="#">История</a></nav>
+    <div class="app-user">Проблемы: <span class="counter">1</span> <span class="sep">|</span> Заявки: <span class="counter">2</span>
+        <span class="sep">|</span> Петрова А. (супервайзер) <span class="sep">|</span> <a href="#">Выход</a></div>
+</header>
+<main class="page">
+    <div class="page-header">
+        <h1>Дизайн-система</h1>
+        <div class="actions"><a class="btn" href="/">В приложение</a></div>
+    </div>
+    <p class="muted">Все экраны собираются из этих компонентов. Стили: <span class="sg-code">/css/tokens.css</span> и
+        <span class="sg-code">/css/ui.css</span>. Правила: docs/design-system.md. Своих цветов и шрифтов на страницах не заводим.</p>
+
+    <section class="sg-section">
+        <h2>Цвета</h2>
+        <p class="muted">Интерфейс чёрно-белый. Цвет означает только статус операции, и рядом с цветом всегда есть текст (НФТ-7).</p>
+        <div class="sg-row" id="swatches"></div>
+    </section>
+
+    <section class="sg-section">
+        <h2>Кнопки</h2>
+        <div class="sg-row">
+            <button class="btn">Обычная</button>
+            <button class="btn btn-primary">Главное действие</button>
+            <button class="btn" disabled>Недоступна</button>
+            <button class="btn btn-wide">Широкая</button>
+        </div>
+        <p class="muted small">Классы: <span class="sg-code">btn</span>, <span class="sg-code">btn btn-primary</span> (одна на экран),
+            <span class="sg-code">btn-wide</span>. Недоступная кнопка остаётся на месте с подсказкой title, почему она неактивна.</p>
+    </section>
+
+    <section class="sg-section">
+        <h2>Поля</h2>
+        <div class="sg-row" style="align-items: flex-start">
+            <label class="field"><span>Логин</span><input class="input" value="tech07"></label>
+            <label class="field"><span>Стоянка</span><select class="select"><option>124</option><option>125</option></select></label>
+            <label class="field invalid"><span>Номер рейса</span><input class="input" value="10A1">
+                <span class="field-error">От 1 до 4 цифр</span></label>
+            <label class="field"><span>Что случилось (обязательно)</span><textarea class="textarea" cols="30">Треснул заправочный шланг</textarea></label>
+        </div>
+        <p class="muted small">Ошибка проверки показывается под полем (ФТ-18): у <span class="sg-code">field</span> класс
+            <span class="sg-code">invalid</span>, текст в <span class="sg-code">field-error</span>, поле берётся из details[].field ответа API.</p>
+    </section>
+
+    <section class="sg-section">
+        <h2>Таблица и статусы операций</h2>
+        <div class="toolbar">
+            <label>Дата <input type="date" class="input" value="2026-10-27"></label>
+            <label>Стоянки <select class="select"><option>120–150</option></select></label>
+            <label><input type="checkbox"> только с отставанием или проблемой</label>
+        </div>
+        <table class="table">
+            <thead><tr><th>Оборот</th><th>Борт / тип</th><th>Ст.</th><th>Трап</th><th>Высадка</th><th>Выгрузка</th><th>Заправка</th><th>Уборка</th><th>Питание</th><th>Посадка</th><th>ПОО</th><th>Прогресс</th><th>Статус</th></tr></thead>
+            <tbody>
+            <tr class="clickable">
+                <td>SU 1001 / 1002</td><td>RA-73725 A320</td><td class="center">124</td>
+                <td class="center st-done">10:05</td><td class="center st-done">10:15</td><td class="center st-late">10:19 +2</td>
+                <td class="center st-problem" data-tip="Заправка топливом · Проблема&#10;План: 10:15–10:35&#10;Комментарий: треснул шланг">! Проблема</td>
+                <td class="center st-late_critical">+14 (35)</td><td class="center st-in_progress">13 / 15</td>
+                <td class="center st-not_started">10:35</td><td class="center st-not_required">—</td>
+                <td class="center">6 / 11</td><td>Обслуживание</td>
+            </tr>
+            </tbody>
+        </table>
+        <div class="legend">
+            <span><i class="st-not_started"></i> не начата</span><span><i class="st-in_progress"></i> в работе</span>
+            <span><i class="st-done"></i> в срок</span><span><i class="st-late"></i> отставание до 10 мин</span>
+            <span><i class="st-late_critical"></i> отставание больше 10 мин</span><span><i class="st-problem"></i> проблема</span>
+            <span><i class="st-not_required"></i> не требуется</span>
+        </div>
+        <p class="muted small">Класс ячейки: <span class="sg-code">st-{status}</span>, для отставания <span class="sg-code">st-late</span> и
+            <span class="sg-code">st-late_critical</span>. Считать класс функцией <span class="sg-code">operationClass()</span> из /js/format.js.
+            Подсказка при наведении: атрибут <span class="sg-code">data-tip</span>.</p>
+    </section>
+
+    <section class="sg-section">
+        <h2>Вкладки, списки, значки</h2>
+        <div class="tabs"><button class="tab">Пользователи</button><button class="tab active">Заявки (2)</button><button class="tab">Роли и права</button></div>
+        <div class="split">
+            <ul class="list"><li>Аэропорты</li><li class="selected">Нормативы операций</li><li>Коды задержек</li></ul>
+            <div class="sg-row"><span class="badge">Запланирован</span><span class="badge st-in_progress">В работе</span>
+                <span class="badge st-problem">Проблема</span><span class="badge st-done">Выполнена</span></div>
+        </div>
+    </section>
+
+    <section class="sg-section">
+        <h2>Сообщения и пустые состояния</h2>
+        <div class="alert alert-error">Сначала завершите: Высадка пассажиров<div class="request-id">requestId: c0a8-2f41</div></div>
+        <div class="alert">Пароль изменён</div>
+        <div class="empty">Оборотов нет</div>
+        <p class="muted small">Ошибка API показывается функцией <span class="sg-code">showError()</span> из /js/layout.js: текст из
+            error.message и requestId для поиска в логах.</p>
+    </section>
+
+    <section class="sg-section">
+        <h2>Окно подтверждения</h2>
+        <button class="btn" onclick="document.getElementById('dlg').showModal()">Подтвердить готовность</button>
+        <dialog class="dialog" id="dlg">
+            <h2>Подтвердить готовность ВС?</h2>
+            <p>SU 1001 / 1002 · RA-73725 · стоянка 124. Все обязательные операции выполнены.</p>
+            <div class="actions"><button class="btn" onclick="this.closest('dialog').close()">Отмена</button>
+                <button class="btn btn-primary" onclick="this.closest('dialog').close()">Подтвердить</button></div>
+        </dialog>
+        <p class="muted small">Элемент <span class="sg-code">&lt;dialog class="dialog"&gt;</span>, открытие <span class="sg-code">showModal()</span>.</p>
+    </section>
+
+    <section class="sg-section">
+        <h2>Экраны техника (планшет)</h2>
+        <p class="muted">На страницах техника у <span class="sg-code">&lt;body&gt;</span> класс <span class="sg-code">touch</span>:
+            кнопки высотой 48 px (больше 1 см), шрифт 16 px (НФТ-6).</p>
+        <div class="sg-touch" id="touchDemo">
+            <table class="table">
+                <thead><tr><th>№</th><th>Операция</th><th>План</th><th>Факт</th><th>Отметка</th></tr></thead>
+                <tbody>
+                <tr><td class="center">6</td><td>Заправка топливом</td><td class="center">10:15–10:35</td><td class="center">10:16</td>
+                    <td class="st-in_progress"><button class="btn">Завершить</button> <button class="btn">Проблема</button> (13 / 20 мин)</td></tr>
+                <tr><td class="center">10</td><td>Посадка пассажиров</td><td class="center">10:35–10:55</td><td></td>
+                    <td class="st-not_started"><button class="btn" disabled>Начать</button> <span class="muted">ждёт: заправка, питание</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+<script>
+    // цвета берём прямо из tokens.css, чтобы витрина не расходилась со стилями
+    const tokens = [
+        ['--c-text', 'текст'], ['--c-muted', 'второстепенный текст'], ['--c-border', 'рамки'], ['--c-surface', 'шапка, заголовки таблиц'],
+        ['--c-selected', 'выбранный пункт'], ['--st-not-started', 'не начата'], ['--st-in-progress', 'в работе'], ['--st-done', 'выполнена в срок'],
+        ['--st-late', 'отставание до 10 мин'], ['--st-late-critical', 'отставание больше 10 мин'], ['--st-problem', 'проблема'], ['--st-not-required', 'не требуется'],
+    ];
+    const css = getComputedStyle(document.documentElement);
+    document.getElementById('swatches').innerHTML = tokens.map(([v, t]) => {
+        const c = css.getPropertyValue(v).trim();
+        return `<div class="sg-swatch"><div style="background:${c}"></div><p><b>${t}</b><br><span class="mono">${v}</span><br>${c}</p></div>`;
+    }).join('');
+    // демо планшетного режима внутри обычной страницы
+    const demo = document.getElementById('touchDemo');
+    ['--fs-base', '--control-h'].forEach((v, i) => demo.style.setProperty(v, ['16px', '48px'][i]));
+    demo.style.fontSize = '16px';
+</script>
+</body>
+</html>

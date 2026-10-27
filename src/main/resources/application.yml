@@ -1,0 +1,46 @@
+# Настройки по умолчанию: вход через Keycloak (запустите infra/docker-compose.yml).
+# Без Keycloak запускайте с профилем dev: ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+spring:
+  application:
+    name: turnaround-checklist
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:checklist}
+    username: ${DB_USER:checklist}
+    password: ${DB_PASSWORD:checklist}
+  flyway:
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # адрес, который стоит в токене (iss). Ключи для проверки подписи сервер берёт отсюда же
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8180/realms/checklist}
+          jwk-set-uri: ${KEYCLOAK_JWKS:http://localhost:8180/realms/checklist/protocol/openid-connect/certs}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  security:
+    mode: ${SECURITY_MODE:keycloak}
+    keycloak:
+      url: ${KEYCLOAK_PUBLIC_URL:http://localhost:8180}
+      realm: checklist
+      client-id: checklist-web
+    dev:
+      user: sup01
+      roles: [supervisor]
+
+springdoc:
+  swagger-ui:
+    path: /swagger
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}]"

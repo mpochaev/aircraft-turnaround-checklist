@@ -1,0 +1,27 @@
+name: Ошибка
+description: Что-то работает не так, как в ЧТЗ или спецификации
+labels: [bug]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги
+      placeholder: "1. Войти как tech07\n2. Открыть оборот ...\n3. Нажать «Начать»"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидали (со ссылкой на ФТ или спецификацию)
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что получили
+    validations:
+      required: true
+  - type: input
+    id: request
+    attributes:
+      label: requestId из сообщения об ошибке

@@ -1,0 +1,16 @@
+# Кто проверяет изменения. Замените @логины на GitHub-логины участников (или команды организации, например @uvp411/auth).
+# Последнее подходящее правило главнее.
+
+/src/main/java/ru/miit/uvp411/checklist/auth/   @auth-team-lead
+/src/main/java/ru/miit/uvp411/checklist/ref/    @ref-team-lead
+/src/main/java/ru/miit/uvp411/checklist/ops/    @ops-team-lead
+/src/main/java/ru/miit/uvp411/checklist/log/    @data-team-lead
+/src/main/resources/db/migration/               @data-team-lead
+/tools/demo-data/                               @data-team-lead
+/infra/keycloak/                                @auth-team-lead
+
+# общее: ревью всех команд
+/src/main/java/ru/miit/uvp411/checklist/shared/ @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
+/src/main/resources/static/css/                 @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
+/src/main/resources/static/js/                  @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
+/pom.xml                                        @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead

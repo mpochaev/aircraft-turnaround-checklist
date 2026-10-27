@@ -1,0 +1,5 @@
+# Профиль dev: Keycloak не нужен, все запросы идут от sup01 (супервайзер).
+# Другого пользователя можно подставить заголовками X-Dev-User и X-Dev-Roles (см. DevAuthenticationFilter).
+app:
+  security:
+    mode: dev

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Мои обороты</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body class="touch">
+<header class="app-header"></header>
+<main class="page" id="page">
+    <div class="page-header"><h1>Мои обороты на сегодня</h1></div>
+    <table class="table">
+        <thead><tr><th>Рейсы</th><th>Борт</th><th>Стоянка</th><th>STA</th><th>STD</th><th>Статус</th></tr></thead>
+        <tbody id="rows"></tbody>
+    </table>
+</main>
+<script type="module">
+    import { startPage, showError, every } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, TURNAROUND_STATUS, escapeHtml } from '/js/format.js';
+
+    await startPage({ active: 'my' });
+
+    // Сервер сам отдаёт технику только назначенные ему обороты (спецификация 7.3)
+    async function load(background) {
+        try {
+            const { items } = await api.get('/turnarounds', {}, { background });
+            document.getElementById('rows').innerHTML = items.length ? items.map((t) => `
+                <tr class="clickable" data-id="${t.id}">
+                    <td>${escapeHtml(t.airline)} ${escapeHtml(t.arrNumber)} ${escapeHtml(t.arrFrom)} → ${escapeHtml(t.depNumber)} ${escapeHtml(t.depTo)}</td>
+                    <td>${escapeHtml(t.aircraft)} ${escapeHtml(t.aircraftType)}</td>
+                    <td class="center">${escapeHtml(t.stand)}</td>
+                    <td class="center">${time(t.sta)}</td>
+                    <td class="center">${time(t.std)}</td>
+                    <td>${TURNAROUND_STATUS[t.status]}</td>
+                </tr>`).join('') : '<tr><td colspan="6" class="center muted">На сегодня оборотов нет</td></tr>';
+        } catch (e) {
+            showError(document.getElementById('page'), e);
+        }
+    }
+
+    document.getElementById('rows').addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (tr) {
+            location.href = `/technician/checklist.html?id=${tr.dataset.id}`;
+        }
+    });
+    let first = true;
+    every(15, () => { load(!first); first = false; });
+</script>
+</body>
+</html>

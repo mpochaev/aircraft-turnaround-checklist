@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Профиль</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page" id="page">
+    <div class="page-header"><h1>Профиль</h1></div>
+    <div class="panel" style="max-width: 640px">
+        <h2 style="margin-top: 0">Мои данные</h2>
+        <table class="table" id="me"></table>
+        <p class="wip">Заявку на изменение ФИО и смену пароля делает команда «Авторизация» вместе с Keycloak: спецификация API 5.5, 5.6, 10.2.</p>
+    </div>
+    <h2>Мои действия за сегодня</h2>
+    <table class="table">
+        <thead><tr><th>Время</th><th>Действие</th><th>Объект</th><th>Оборот</th></tr></thead>
+        <tbody id="rows"></tbody>
+    </table>
+</main>
+<script type="module">
+    import { startPage, showError } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, today, escapeHtml } from '/js/format.js';
+
+    const me = await startPage({ active: 'profile' });
+    const fio = [me.lastName, me.firstName, me.middleName].filter(Boolean).join(' ') || '—';
+    document.getElementById('me').innerHTML = `
+        <tr><td>Логин</td><td>${escapeHtml(me.login)}</td></tr>
+        <tr><td>ФИО</td><td>${escapeHtml(fio)}</td></tr>
+        <tr><td>Роли</td><td>${escapeHtml(me.roles.join(', '))}</td></tr>
+        <tr><td>Права</td><td class="small">${escapeHtml(me.permissions.join(', '))}</td></tr>`;
+    try {
+        // без права log.read_all сервер отдаёт только свои записи (ФТ-42)
+        const { items } = await api.get('/log', { date: today(), user: me.login });
+        document.getElementById('rows').innerHTML = items.map((r) => `
+            <tr><td>${time(r.time)}</td><td>${escapeHtml(r.actionType)}</td>
+                <td>${escapeHtml(r.entity ?? '')} ${r.entityId ?? ''}</td><td class="center">${r.turnaroundId ?? ''}</td></tr>`).join('')
+            || '<tr><td colspan="4" class="center muted">Сегодня действий не было</td></tr>';
+    } catch (e) {
+        showError(document.getElementById('page'), e);
+    }
+</script>
+</body>
+</html>

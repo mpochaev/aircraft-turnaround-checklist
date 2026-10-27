@@ -1,0 +1,170 @@
+/*
+ * Компоненты интерфейса. Подключение на каждой странице:
+ *   <link rel="stylesheet" href="/css/tokens.css">
+ *   <link rel="stylesheet" href="/css/ui.css">
+ * Как выглядит каждый компонент: /styleguide.html. Правила: docs/design-system.md.
+ */
+
+/* ---------- основа ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+    font-family: var(--font);
+    font-size: var(--fs-base);
+    line-height: var(--lh);
+    color: var(--c-text);
+    background: var(--c-bg);
+}
+h1 { font-size: var(--fs-h1); margin: 0; }
+h2 { font-size: var(--fs-h2); margin: var(--sp-4) 0 var(--sp-2); }
+a { color: inherit; }
+.muted { color: var(--c-muted); }
+.faint { color: var(--c-faint); }
+.small { font-size: var(--fs-small); }
+.mono { font-family: var(--font-mono); }
+.nowrap { white-space: nowrap; }
+.hidden { display: none !important; }
+
+/* ---------- шапка и меню ---------- */
+.app-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-6);
+    padding: 0 var(--sp-4);
+    min-height: 48px;
+    background: var(--c-surface);
+    border-bottom: var(--border-strong);
+}
+.app-nav { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.app-nav a { text-decoration: none; padding: var(--sp-3) 0; font-size: var(--fs-large); }
+.app-nav a.active { font-weight: bold; }
+.app-user { margin-left: auto; display: flex; gap: var(--sp-3); align-items: center; white-space: nowrap; }
+.app-user .sep { color: var(--c-faint); }
+.counter { font-weight: bold; }
+
+/* ---------- страница ---------- */
+.page { padding: var(--sp-4); }
+.page-header { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.page-header .actions { margin-left: auto; display: flex; gap: var(--sp-2); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-4); }
+.toolbar label { display: flex; align-items: center; gap: var(--sp-2); }
+.panel { border: var(--border); padding: var(--sp-4); }
+.split { display: grid; grid-template-columns: 220px 1fr; gap: var(--sp-4); align-items: start; }
+.list { list-style: none; margin: 0; padding: 0; border: var(--border); }
+.list li { padding: var(--sp-2) var(--sp-3); border-bottom: var(--border); cursor: pointer; }
+.list li:last-child { border-bottom: 0; }
+.list li.selected { background: var(--c-selected); font-weight: bold; }
+
+/* ---------- кнопки ---------- */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    min-height: var(--control-h);
+    padding: 0 var(--sp-4);
+    font: inherit;
+    color: var(--c-text);
+    background: var(--c-bg);
+    border: var(--border-strong);
+    border-radius: var(--radius);
+    cursor: pointer;
+    text-decoration: none;
+}
+.btn:hover { background: var(--c-surface); }
+.btn-primary { background: var(--c-text); color: var(--c-bg); }
+.btn-primary:hover { background: #333333; }
+.btn:disabled, .btn[aria-disabled="true"] {
+    color: var(--c-faint);
+    background: var(--st-not-started);
+    border-color: var(--c-border);
+    cursor: not-allowed;
+}
+.btn-wide { min-width: 180px; }
+
+/* ---------- поля ---------- */
+.field { display: flex; flex-direction: column; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.field > span { color: var(--c-muted); }
+.input, .select, .textarea {
+    min-height: var(--control-h);
+    padding: 0 var(--sp-2);
+    font: inherit;
+    color: var(--c-text);
+    background: var(--c-bg);
+    border: var(--border-strong);
+    border-radius: 0;
+}
+.textarea { padding: var(--sp-2); min-height: 80px; resize: vertical; }
+.input:focus, .select:focus, .textarea:focus, .btn:focus-visible { outline: 2px solid var(--c-text); outline-offset: 1px; }
+.field-error { color: #a00000; font-size: var(--fs-small); }
+.field.invalid .input, .field.invalid .select, .field.invalid .textarea { border-color: #a00000; }
+
+/* ---------- таблицы ---------- */
+.table { border-collapse: collapse; width: 100%; }
+.table th, .table td { border: var(--border); padding: var(--sp-2) var(--sp-2); text-align: left; vertical-align: middle; }
+.table th { background: var(--c-surface); font-weight: bold; text-align: center; }
+.table td.center, .table th.center { text-align: center; }
+.table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table tr.clickable { cursor: pointer; }
+.table tr.clickable:hover td { outline: 1px solid var(--c-text); outline-offset: -1px; }
+.table-wrap { overflow-x: auto; }
+body.touch .table td, body.touch .table th { padding: var(--sp-3); }
+
+/* ---------- статусы операций (таблица 3 ЧТЗ) ---------- */
+.st-not_started { background: var(--st-not-started); }
+.st-in_progress { background: var(--st-in-progress); }
+.st-done { background: var(--st-done); }
+.st-late { background: var(--st-late); }
+.st-late_critical { background: var(--st-late-critical); }
+.st-problem { background: var(--st-problem); }
+.st-not_required { background: var(--st-not-required); color: var(--c-muted); }
+.badge {
+    display: inline-block;
+    padding: 1px var(--sp-2);
+    border: var(--border);
+    border-radius: var(--radius);
+    font-size: var(--fs-small);
+    white-space: nowrap;
+}
+
+/* ---------- вкладки ---------- */
+.tabs { display: flex; margin-bottom: var(--sp-4); }
+.tab { padding: var(--sp-2) var(--sp-6); border: var(--border-strong); border-left-width: 0; background: var(--c-bg); font: inherit; cursor: pointer; }
+.tab:first-child { border-left-width: 1.5px; }
+.tab.active { background: var(--c-selected); font-weight: bold; }
+
+/* ---------- сообщения ---------- */
+.alert { padding: var(--sp-3) var(--sp-4); border: var(--border-strong); margin-bottom: var(--sp-4); }
+.alert-error { border-color: #a00000; }
+.alert .request-id { color: var(--c-faint); font-size: var(--fs-small); }
+.empty { padding: var(--sp-6); text-align: center; color: var(--c-muted); border: 1px dashed var(--c-border); }
+.wip { padding: var(--sp-4); border: 1px dashed var(--c-border); color: var(--c-muted); }
+
+/* ---------- подсказка ---------- */
+[data-tip] { position: relative; }
+[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    z-index: 10;
+    min-width: 240px;
+    padding: var(--sp-2) var(--sp-3);
+    white-space: pre-line;
+    text-align: left;
+    font-size: var(--fs-small);
+    background: var(--c-bg);
+    border: var(--border-strong);
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- окно ---------- */
+.dialog { border: var(--border-strong); padding: var(--sp-6); max-width: 520px; width: 90vw; }
+.dialog::backdrop { background: rgba(0, 0, 0, 0.3); }
+.dialog h2 { margin-top: 0; }
+.dialog .actions { display: flex; justify-content: flex-end; gap: var(--sp-3); margin-top: var(--sp-4); }
+
+/* ---------- легенда статусов ---------- */
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-4); font-size: var(--fs-small); }
+.legend span { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.legend i { display: inline-block; width: 16px; height: 16px; border: var(--border); }

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Обороты</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page" id="page">
+    <div class="page-header">
+        <h1>Обороты</h1>
+        <div class="actions"><a class="btn" href="/supervisor/turnaround-new.html">Создать оборот</a></div>
+    </div>
+    <div class="toolbar">
+        <label>Дата <input type="date" class="input" id="date"></label>
+        <label><input type="checkbox" id="onlyLate"> только с риском задержки или проблемой</label>
+        <span class="muted small" id="updated"></span>
+    </div>
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>Оборот</th><th>Маршрут</th><th>Борт / тип</th><th>Стоянка</th><th>Техник</th>
+                <th>STA</th><th>STD</th><th>Постановка</th><th>Прогресс</th><th>Статус</th>
+            </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+        </table>
+    </div>
+    <p class="wip">Столбцы по каждой операции, окно ячейки («Решено», «Исправить отметку», код задержки) и подтверждение
+        готовности делает команда «Бизнес-логика»: спецификация API, разделы 7.3, 7.6, 7.7 и 10.5.</p>
+</main>
+<script type="module">
+    import { startPage, showError, every } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, today, TURNAROUND_STATUS, escapeHtml } from '/js/format.js';
+
+    await startPage({ active: 'turnarounds' });
+    const dateInput = document.getElementById('date');
+    const onlyLate = document.getElementById('onlyLate');
+    dateInput.value = today();
+
+    async function load(background) {
+        try {
+            const data = await api.get('/turnarounds', { date: dateInput.value }, { background });
+            render(data.items);
+            document.getElementById('updated').textContent = `обновлено ${new Date().toLocaleTimeString('ru-RU').slice(0, 5)}`;
+        } catch (e) {
+            showError(document.getElementById('page'), e);
+        }
+    }
+
+    function render(items) {
+        const problems = items.reduce((s, t) => s + (t.problems || 0), 0);
+        document.getElementById('header-counters').innerHTML = `Проблемы: <span class="counter">${problems}</span> <span class="sep">|</span>`;
+        const shown = onlyLate.checked ? items.filter((t) => t.delayRisk || t.problems > 0) : items;
+        document.getElementById('rows').innerHTML = shown.length ? shown.map((t) => `
+            <tr class="clickable" data-id="${t.id}">
+                <td class="nowrap">${escapeHtml(t.airline)} ${escapeHtml(t.arrNumber)} / ${escapeHtml(t.depNumber)}</td>
+                <td class="nowrap">${escapeHtml(t.arrFrom)} → ${escapeHtml(t.depTo)}</td>
+                <td class="nowrap">${escapeHtml(t.aircraft)} ${escapeHtml(t.aircraftType)}</td>
+                <td class="center">${escapeHtml(t.stand)}</td>
+                <td class="nowrap">${escapeHtml(t.technician)}</td>
+                <td class="center">${time(t.sta)}</td>
+                <td class="center">${time(t.std)}</td>
+                <td class="center">${time(t.onBlockAt) || '—'}</td>
+                <td class="center">${t.mandatoryDone} / ${t.mandatoryTotal}</td>
+                <td class="${t.problems > 0 ? 'st-problem' : ''}">
+                    ${TURNAROUND_STATUS[t.status]}${t.problems > 0 ? '<br>! Проблема' : ''}${t.delayRisk && ['planned', 'in_service'].includes(t.status) ? '<br><b>риск задержки</b>' : ''}
+                </td>
+            </tr>`).join('') : '<tr><td colspan="10" class="center muted">Оборотов нет</td></tr>';
+    }
+
+    document.getElementById('rows').addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (tr) {
+            location.href = `/technician/checklist.html?id=${tr.dataset.id}`;
+        }
+    });
+    dateInput.addEventListener('change', () => load(false));
+    onlyLate.addEventListener('change', () => load(false));
+    let first = true;
+    every(15, () => { load(!first); first = false; });
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Создание оборота</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page">
+    <div class="page-header"><h1>Создание оборота</h1></div>
+    <div class="wip">
+        <p><b>Страница в разработке. Команда «Бизнес-логика».</b></p>
+        <p>Что должно быть на экране: выбор или ввод рейса прилёта и вылета, борт, стоянка, техник; проверки маршрута, времени и активности записей (ФТ-23–ФТ-27).</p>
+        <p>Методы API: GET /flights, POST /flights, GET /ref/aircraft, GET /ref/stands, GET /users?role=technician, POST /turnarounds (спецификация 7.1, 7.2, 7.4).</p>
+        <p>Макет: документ «Макеты интерфейса», рисунок 6. Компоненты и правила оформления: <a href="/styleguide.html">/styleguide.html</a>.</p>
+    </div>
+</main>
+<script type="module">
+    import { startPage } from '/js/layout.js';
+    await startPage({ active: 'turnarounds' });
+</script>
+</body>
+</html>

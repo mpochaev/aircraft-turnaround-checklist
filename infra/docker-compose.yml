@@ -1,0 +1,66 @@
+# Окружение для разработки: база, Keycloak, Adminer.
+#   docker compose -f infra/docker-compose.yml --env-file .env up -d
+# Приложение запускается отдельно (./mvnw spring-boot:run) или в контейнере: добавьте --profile app.
+name: checklist
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: checklist
+      POSTGRES_USER: checklist
+      POSTGRES_PASSWORD: checklist
+      TZ: Europe/Moscow
+      PGTZ: Europe/Moscow
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U checklist -d checklist"]
+      interval: 5s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME: http://localhost:${KC_PORT:-8180}
+      TZ: Europe/Moscow
+    ports:
+      - "${KC_PORT:-8180}:8080"
+    volumes:
+      - ./keycloak/realm-checklist.json:/opt/keycloak/data/import/realm-checklist.json:ro
+
+  adminer:
+    image: adminer:4
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "${ADMINER_PORT:-8181}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Приложение в контейнере (для показа и для песочницы). Для разработки удобнее запускать из IDE.
+  app:
+    profiles: ["app"]
+    build:
+      context: ..
+    environment:
+      DB_HOST: db
+      KEYCLOAK_ISSUER: http://localhost:${KC_PORT:-8180}/realms/checklist
+      KEYCLOAK_JWKS: http://keycloak:8080/realms/checklist/protocol/openid-connect/certs
+      KEYCLOAK_PUBLIC_URL: http://localhost:${KC_PORT:-8180}
+      TZ: Europe/Moscow
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Цифровой чек-лист</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<main class="page"><p class="muted">Вход в систему…</p></main>
+<script type="module">
+    import { initAuth } from '/js/auth.js';
+    import { api } from '/js/api.js';
+
+    // После входа: супервайзер на таблицу оборотов, техник на свои обороты (ФТ-8, спецификация 10.1)
+    await initAuth();
+    const me = await api.get('/me');
+    location.replace(me.permissions.includes('turnarounds.read_all')
+        ? '/supervisor/turnarounds.html'
+        : '/technician/my-turnarounds.html');
+</script>
+</body>
+</html>

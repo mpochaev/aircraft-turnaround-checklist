@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Чек-лист оборота</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+    <style>
+        .cl-head { display: flex; gap: var(--sp-4); align-items: flex-start; margin-bottom: var(--sp-4); }
+        .cl-head .btn { margin-left: auto; }
+        .cl-mark { display: flex; gap: var(--sp-2); align-items: center; }
+        .cl-foot { display: flex; gap: var(--sp-4); align-items: center; margin-top: var(--sp-4); }
+    </style>
+</head>
+<body class="touch">
+<header class="app-header"></header>
+<main class="page" id="page">
+    <div class="cl-head">
+        <div>
+            <h1 id="title">Чек-лист</h1>
+            <div id="sub" class="muted"></div>
+            <div id="summary"></div>
+        </div>
+        <button class="btn btn-wide" id="onBlock" disabled title="Делает команда «Бизнес-логика»: PATCH /turnarounds/{id}">Постановка ВС</button>
+    </div>
+    <table class="table">
+        <thead><tr><th>№</th><th>Операция</th><th>План</th><th>Факт</th><th>Отметка</th></tr></thead>
+        <tbody id="rows"></tbody>
+    </table>
+    <div class="cl-foot">
+        <button class="btn btn-wide" disabled title="Делает команда «Бизнес-логика»">Отправление ВС</button>
+        <span class="muted">станет доступна после подтверждения готовности супервайзером</span>
+    </div>
+    <p class="wip">Кнопки отметок пока неактивны. Их подключает команда «Бизнес-логика»: PATCH /operations/{id},
+        PATCH /turnarounds/{id}, окно «Проблема» (спецификация 7.6, 7.7, 10.3, 10.4).</p>
+</main>
+<script type="module">
+    import { startPage, showError, every } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, TURNAROUND_STATUS, OPERATION_STATUS, operationClass, minutesBetween, escapeHtml } from '/js/format.js';
+
+    const me = await startPage({ active: 'my' });
+    const id = new URLSearchParams(location.search).get('id');
+    const NO_ACTION = 'title="Делает команда «Бизнес-логика»: PATCH /operations/{id}" disabled';
+
+    function nowIso() {
+        const d = new Date();
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+    }
+
+    function mark(op, byCode) {
+        if (op.status === 'not_required') return 'Не требуется';
+        if (op.status === 'problem') return `! Проблема: ${escapeHtml(op.comment)}`;
+        if (op.status === 'done') {
+            const lag = minutesBetween(op.plannedEnd, op.actualEnd);
+            return `Выполнена${lag > 0 ? `, +${lag} мин` : ''}${op.delayCode ? `, код ${escapeHtml(op.delayCode)}` : ''}`;
+        }
+        if (op.status === 'in_progress') {
+            const passed = minutesBetween(op.actualStart, nowIso());
+            return `<span class="cl-mark"><button class="btn" ${NO_ACTION}>Завершить</button>
+                    <button class="btn" ${NO_ACTION}>Проблема</button> (${passed} / ${op.durationMin} мин)</span>`;
+        }
+        const waits = (op.after || '').split(',').filter(Boolean)
+            .filter((c) => !['done', 'not_required'].includes(byCode[c]?.status))
+            .map((c) => byCode[c]?.name.toLowerCase());
+        return `<span class="cl-mark"><button class="btn" ${NO_ACTION}>Начать</button>
+                ${waits.length ? `<span class="muted">ждёт: ${escapeHtml(waits.join(', '))}</span>` : ''}</span>`;
+    }
+
+    async function load(background) {
+        try {
+            const t = await api.get(`/turnarounds/${id}`, {}, { background });
+            document.getElementById('title').textContent =
+                `${t.airline} ${t.arrNumber} ${t.arrFrom} → SVO / ${t.airline} ${t.depNumber} SVO → ${t.depTo}`;
+            document.getElementById('sub').textContent = `${t.aircraft} · ${t.aircraftType} · стоянка ${t.stand} · техник ${t.technician}`;
+            document.getElementById('summary').textContent =
+                `${TURNAROUND_STATUS[t.status]} · постановка ${time(t.onBlockAt) || '—'} · вылет по плану ${time(t.std)} · выполнено ${t.mandatoryDone} из ${t.mandatoryTotal}`;
+            const byCode = Object.fromEntries(t.operations.map((o) => [o.operationCode, o]));
+            const now = nowIso();
+            document.getElementById('rows').innerHTML = t.operations.map((op) => `
+                <tr>
+                    <td class="center">${op.seqNo}</td>
+                    <td>${escapeHtml(op.name)}</td>
+                    <td class="center nowrap">${op.status === 'not_required' ? '—' : `${time(op.plannedStart)}–${time(op.plannedEnd)}`}</td>
+                    <td class="center nowrap">${op.actualStart ? time(op.actualStart) + (op.actualEnd ? '–' + time(op.actualEnd) : '') : ''}</td>
+                    <td class="${operationClass(op, now)}">${mark(op, byCode)}</td>
+                </tr>`).join('');
+        } catch (e) {
+            showError(document.getElementById('page'), e);
+        }
+    }
+
+    let first = true;
+    every(15, () => { load(!first); first = false; });
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Пользователи</title>
+    <link rel="stylesheet" href="/css/tokens.css">
+    <link rel="stylesheet" href="/css/ui.css">
+</head>
+<body>
+<header class="app-header"></header>
+<main class="page">
+    <div class="page-header"><h1>Пользователи</h1></div>
+    <div class="wip">
+        <p><b>Страница в разработке. Команда «Авторизация».</b></p>
+        <p>Что должно быть на экране: вкладки «Пользователи», «Заявки», «Роли и права»; создание сотрудника, роли, сброс пароля, разблокировка, решения по заявкам (ФТ-9, ФТ-11, ФТ-15).</p>
+        <p>Методы API: GET/POST /users, PATCH /users/{id}, GET /change-requests, PATCH /change-requests/{id}, GET/POST /roles, PATCH /roles/{id}, GET /permissions (спецификация, раздел 5). Учётные записи и роли ведёт Keycloak, см. docs/adr/0002-keycloak.md.</p>
+        <p>Макет: документ «Макеты интерфейса», рисунки 8 и 9. Компоненты и правила оформления: <a href="/styleguide.html">/styleguide.html</a>.</p>
+    </div>
+</main>
+<script type="module">
+    import { startPage } from '/js/layout.js';
+    await startPage({ active: 'users' });
+</script>
+</body>
+</html>
