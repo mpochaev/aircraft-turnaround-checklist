@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Приложение (Keycloak)" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="ru.miit.uvp411.checklist.ChecklistApplication" />
+    <module name="turnaround-checklist" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

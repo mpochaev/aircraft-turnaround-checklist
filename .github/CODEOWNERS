@@ -1,16 +1,39 @@
 # Кто проверяет изменения. Замените @логины на GitHub-логины участников (или команды организации, например @uvp411/auth).
 # Последнее подходящее правило главнее.
 
+# «Авторизация»
 /src/main/java/ru/miit/uvp411/checklist/auth/   @auth-team-lead
-/src/main/java/ru/miit/uvp411/checklist/ref/    @ref-team-lead
-/src/main/java/ru/miit/uvp411/checklist/ops/    @ops-team-lead
-/src/main/java/ru/miit/uvp411/checklist/log/    @data-team-lead
-/src/main/resources/db/migration/               @data-team-lead
-/tools/demo-data/                               @data-team-lead
+/src/main/resources/static/users/               @auth-team-lead
+/src/main/resources/static/profile.html         @auth-team-lead
 /infra/keycloak/                                @auth-team-lead
 
-# общее: ревью всех команд
+# «Справочники»
+/src/main/java/ru/miit/uvp411/checklist/ref/    @ref-team-lead
+/src/main/resources/static/ref/                 @ref-team-lead
+
+# «Бизнес-логика»
+/src/main/java/ru/miit/uvp411/checklist/ops/    @ops-team-lead
+/src/main/resources/static/technician/          @ops-team-lead
+/src/main/resources/static/supervisor/          @ops-team-lead
+
+# «Данные»: журнал, показатели, база, окружение
+/src/main/java/ru/miit/uvp411/checklist/log/    @data-team-lead
+/src/main/resources/static/log/                 @data-team-lead
+/src/main/resources/static/history/             @data-team-lead
+/src/main/resources/db/migration/               @data-team-lead
+/tools/demo-data/                               @data-team-lead
+/tools/design/                                  @data-team-lead
+/tools/pmi/                                     @data-team-lead
+/infra/backup/                                  @data-team-lead
+/docs/backup.md                                 @data-team-lead
+/docs/metrics.md                                @data-team-lead
+/infra/docker-compose.yml                       @data-team-lead
+/Dockerfile                                     @data-team-lead
+/.github/                                       @data-team-lead
+
+# общее: ревью всех команд (дизайн-систему ведут «Данные», проверку токена «Авторизация»)
 /src/main/java/ru/miit/uvp411/checklist/shared/ @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
 /src/main/resources/static/css/                 @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
 /src/main/resources/static/js/                  @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
+/src/main/resources/static/styleguide.html      @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
 /pom.xml                                        @auth-team-lead @ref-team-lead @ops-team-lead @data-team-lead
