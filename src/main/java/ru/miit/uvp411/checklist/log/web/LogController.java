@@ -1,67 +1,81 @@
 package ru.miit.uvp411.checklist.log.web;
 
+import java.time.Duration;
 import java.time.LocalDate;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import ru.miit.uvp411.checklist.auth.AuthApi;
+import ru.miit.uvp411.checklist.log.ActionTypes;
+import ru.miit.uvp411.checklist.log.internal.LogQueries;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
-import ru.miit.uvp411.checklist.shared.jdbc.Rows;
 import ru.miit.uvp411.checklist.shared.security.CurrentUser;
+import ru.miit.uvp411.checklist.shared.web.Paging;
 
 /**
  * Журнал действий, раздел 8.1 спецификации API.
- * Без права log.read_all пользователь видит только свои записи, а чужой userId даёт 403.
- * Готово: фильтр по дате, пользователю и обороту.
- * TODO команда «Данные»: фильтр по действию и периоду до 31 дня, постраничный вывод, GET /metrics (8.2).
+ * Без права log.read_all пользователь видит только свои записи, а чужой userId даёт 403 (ФТ-42, сценарий 48).
  */
 @RestController
 @RequestMapping("/api/v1/log")
 class LogController {
 
-    private final JdbcClient jdbc;
+    private static final Duration MAX_PERIOD = Duration.ofDays(31);
 
-    LogController(JdbcClient jdbc) {
-        this.jdbc = jdbc;
+    private final LogQueries queries;
+    private final AuthApi auth;
+
+    LogController(LogQueries queries, AuthApi auth) {
+        this.queries = queries;
+        this.auth = auth;
     }
 
     @GetMapping
-    Map<String, Object> list(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-                             @RequestParam(required = false) String user,
+    Map<String, Object> list(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+                             @RequestParam(required = false) Integer userId,
+                             @RequestParam(required = false) String actionType,
                              @RequestParam(required = false) Long turnaroundId,
-                             @RequestParam(defaultValue = "200") int size) {
+                             @RequestParam(defaultValue = "1") int page,
+                             @RequestParam(defaultValue = "50") int size) {
+        // по умолчанию текущие сутки; если задан только один конец, период занимает его сутки
+        LocalDate day = from != null ? from.toLocalDate() : to != null ? to.toLocalDate() : LocalDate.now();
+        LocalDateTime start = from != null ? from : day.atStartOfDay();
+        LocalDateTime end = to != null ? to : day.atTime(LocalTime.MAX.withNano(0));
+        if (end.isBefore(start)) {
+            throw ApiException.validation("to", to, "Конец периода раньше начала");
+        }
+        if (Duration.between(start, end).compareTo(MAX_PERIOD) > 0) {
+            throw ApiException.validation("to", to, "Период больше 31 дня");
+        }
+        if (actionType != null && !ActionTypes.exists(actionType)) {
+            throw ApiException.validation("actionType", actionType, "Неизвестный вид действия");
+        }
+        Paging paging = Paging.of(page, size);
+
         CurrentUser me = CurrentUser.get();
-        String login = user;
+        String onlyLogin = null;
         if (!me.can("log.read_all")) {
-            if (user != null && !user.equals(me.login())) {
+            Integer myId = auth.findUser(me.login()).map(AuthApi.UserInfo::id).orElse(null);
+            if (userId != null && !userId.equals(myId)) {
                 throw ApiException.forbidden();
             }
-            login = me.login();
+            onlyLogin = me.login();
         }
-        LocalDate day = date != null ? date : LocalDate.now();
-        List<Map<String, Object>> items = Rows.clean(jdbc.sql("""
-                        select l.id, l.action_time as "time", l.login as "user", l.action_type as "actionType",
-                               l.entity, l.entity_id as "entityId", l.turnaround_id as "turnaroundId",
-                               l.old_value as "oldValue", l.new_value as "newValue"
-                        from log.action_log l
-                        where l.action_time >= :day and l.action_time < :next
-                          and (cast(:login as varchar) is null or l.login = :login)
-                          and (cast(:tid as bigint) is null or l.turnaround_id = :tid)
-                        order by l.action_time desc, l.id desc
-                        limit :size
-                        """)
-                .param("day", day.atStartOfDay())
-                .param("next", day.plusDays(1).atStartOfDay())
-                .param("login", login)
-                .param("tid", turnaroundId)
-                .param("size", Math.min(Math.max(size, 1), 1000))
-                .query().listOfRows());
-        return Map.of("items", items, "total", items.size());
+
+        LogQueries.Page result = queries.find(
+                new LogQueries.Filter(start, end, userId, onlyLogin, actionType, turnaroundId), paging);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("items", result.items());
+        body.put("total", result.total());
+        return body;
     }
 }

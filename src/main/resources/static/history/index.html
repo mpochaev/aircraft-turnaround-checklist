@@ -9,18 +9,138 @@
 </head>
 <body>
 <header class="app-header"></header>
-<main class="page">
+<main class="page" id="page">
     <div class="page-header"><h1>История</h1></div>
-    <div class="wip">
-        <p><b>Страница в разработке. Команда «Данные».</b></p>
-        <p>Что должно быть на экране: закрытые и отменённые обороты с фильтром по дате, борту и номеру рейса, показатели за период (ФТ-43, ФТ-44).</p>
-        <p>Методы API: GET /turnarounds?status=closed,cancelled, GET /metrics (спецификация 7.3, 8.2).</p>
-        <p>Макет: документ «Макеты интерфейса», рисунок 11. Компоненты и правила оформления: <a href="/styleguide.html">/styleguide.html</a>.</p>
+    <form class="toolbar" id="filters">
+        <label>С <input type="date" class="input" name="dateFrom" required></label>
+        <label>по <input type="date" class="input" name="dateTo" required></label>
+        <label>Тип ВС <select class="select" name="aircraftTypeId"><option value="">Все</option></select></label>
+        <label>Борт <input class="input" name="aircraft" list="aircraftList" size="10" placeholder="RA-73725"></label>
+        <label>Рейс <input class="input" name="flightNumber" inputmode="numeric" pattern="[0-9]{1,4}" size="6" placeholder="1001"></label>
+        <button class="btn btn-primary" style="margin-left: auto">Показать</button>
+        <datalist id="aircraftList"></datalist>
+    </form>
+    <div class="tiles" id="tiles"></div>
+    <p class="wip hidden" id="filterNote">Список за период появится, когда команда «Бизнес-логика» добавит в GET /turnarounds
+        фильтры status, dateFrom, dateTo, aircraftTypeId, aircraftId и flightNumber (спецификация API 7.3).
+        Пока ниже закрытые и отменённые обороты за сегодня. Показатели в плитках уже считаются за выбранный период.</p>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Дата</th><th>Оборот</th><th>Борт / тип</th><th>Ст.</th><th>Постановка</th><th>Отправление</th>
+                <th>Время, мин</th><th>Отставания</th><th>Проблемы</th><th>Статус</th></tr></thead>
+            <tbody id="rows"></tbody>
+        </table>
     </div>
+    <div id="pager"></div>
+    <p class="muted small">Закрытые и отменённые обороты не удаляются 3 года. Нажатие на строку открывает чек-лист оборота только для просмотра.</p>
 </main>
 <script type="module">
-    import { startPage } from '/js/layout.js';
+    import { startPage, showError } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, date, today, minutesBetween, TURNAROUND_STATUS, escapeHtml } from '/js/format.js';
+    import { refSelect, showFieldErrors, clearFieldErrors, pager } from '/js/ui.js';
+
+    const SIZE = 50;
     await startPage({ active: 'history' });
+    const page = document.getElementById('page');
+    const form = document.getElementById('filters');
+
+    const weekAgo = new Date(Date.now() - 6 * 24 * 3600 * 1000);
+    form.dateFrom.value = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth() + 1).padStart(2, '0')}-${String(weekAgo.getDate()).padStart(2, '0')}`;
+    form.dateTo.value = today();
+
+    let aircraft = [];
+    try {
+        await refSelect(form.aircraftTypeId, 'aircraft-types', { label: (r) => r.code });
+        aircraft = (await api.get('/ref/aircraft', { isActive: 'all' })).items;
+        document.getElementById('aircraftList').innerHTML = aircraft.map((a) => `<option value="${escapeHtml(a.tailNumber)}">`).join('');
+    } catch (e) {
+        showError(page, e);
+    }
+
+    // Показатели за период (ФТ-44, GET /metrics)
+    async function loadMetrics() {
+        const m = await api.get('/metrics', {
+            dateFrom: form.dateFrom.value, dateTo: form.dateTo.value, aircraftTypeId: form.aircraftTypeId.value,
+        });
+        const late = m.topLateOperations[0];
+        const code = m.topDelayCodes[0];
+        const tile = (label, value, note = '') => `<div class="tile"><span>${label}</span><b>${escapeHtml(value)}</b>${note ? `<small>${escapeHtml(note)}</small>` : ''}</div>`;
+        document.getElementById('tiles').innerHTML =
+            tile('Оборотов закрыто', String(m.turnaroundsClosed))
+            + tile('Среднее время оборота', m.avgTurnaroundMin !== null ? `${m.avgTurnaroundMin} мин` : '—', 'от постановки до отправления')
+            + tile('Операций в срок', m.onTimeShare !== null ? `${Math.round(m.onTimeShare * 100)} %` : '—')
+            + tile('Чаще всего отстаёт', late ? late.name : '—', late ? `${late.lateCount} раз, в среднем +${late.avgDelayMin} мин` : '')
+            + tile('Частый код задержки', code ? code.code : '—', code ? `${code.name}, ${code.count} раз` : '');
+    }
+
+    // Закрытые и отменённые обороты (ФТ-43, GET /turnarounds)
+    async function loadTurnarounds(pageNo) {
+        const tail = form.aircraft.value.trim().toUpperCase();
+        const found = aircraft.find((a) => a.tailNumber === tail);
+        const data = await api.get('/turnarounds', {
+            status: 'closed,cancelled',
+            dateFrom: form.dateFrom.value,
+            dateTo: form.dateTo.value,
+            aircraftTypeId: form.aircraftTypeId.value,
+            aircraftId: tail ? (found ? found.id : -1) : '',
+            flightNumber: form.flightNumber.value.trim(),
+            page: pageNo,
+            size: SIZE,
+        });
+        // сервер ещё не знает фильтра status: оставляем закрытые и отменённые сами
+        const ignored = data.items.some((t) => !['closed', 'cancelled'].includes(t.status));
+        document.getElementById('filterNote').classList.toggle('hidden', !ignored);
+        const items = ignored ? data.items.filter((t) => ['closed', 'cancelled'].includes(t.status)) : data.items;
+        document.getElementById('rows').innerHTML = items.map(row).join('')
+            || '<tr><td colspan="10" class="center muted">За период оборотов нет</td></tr>';
+        pager(document.getElementById('pager'), { page: pageNo, size: SIZE, total: ignored ? items.length : data.total, onPage: (p) => run(p, false) });
+    }
+
+    // Строка по модели TurnaroundRow (спецификация 9.2). Пока «Бизнес-логика» не перешла на неё, берём и старые поля.
+    function row(t) {
+        const sta = t.arrFlight?.sta ?? t.sta;
+        const pair = t.arrFlight ? `${t.arrFlight.code} / ${t.depFlight.code.split(' ').pop()}` : `${t.airline} ${t.arrNumber} / ${t.depNumber}`;
+        const board = t.aircraft?.tailNumber ? `${t.aircraft.tailNumber} ${t.aircraft.typeCode}` : `${t.aircraft} ${t.aircraftType}`;
+        const closed = t.status === 'closed';
+        const lates = t.operations ? t.operations.filter((o) => o.delayMin > 0).length : '—';
+        return `
+            <tr class="clickable" data-id="${t.id}">
+                <td class="center">${date(sta).substring(0, 5)}</td>
+                <td class="nowrap">${escapeHtml(pair)}</td>
+                <td class="nowrap">${escapeHtml(board)}</td>
+                <td class="center">${escapeHtml(t.stand)}</td>
+                <td class="center">${time(t.onBlockAt) || '—'}</td>
+                <td class="center">${time(t.offBlockAt) || '—'}</td>
+                <td class="num">${closed && t.onBlockAt ? minutesBetween(t.onBlockAt, t.offBlockAt) : '—'}</td>
+                <td class="num">${closed ? lates : '—'}</td>
+                <td class="num">${closed ? (t.problems ?? 0) : '—'}</td>
+                <td class="center"><span class="badge">${TURNAROUND_STATUS[t.status]}</span></td>
+            </tr>`;
+    }
+
+    async function run(pageNo = 1, withMetrics = true) {
+        clearFieldErrors(form);
+        try {
+            await Promise.all([withMetrics ? loadMetrics() : null, loadTurnarounds(pageNo)]);
+        } catch (e) {
+            if (!showFieldErrors(form, e)) {
+                showError(page, e);
+            }
+        }
+    }
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        run(1);
+    });
+    document.getElementById('rows').addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-id]');
+        if (tr) {
+            location.href = `/technician/checklist.html?id=${tr.dataset.id}`;
+        }
+    });
+    run(1);
 </script>
 </body>
 </html>

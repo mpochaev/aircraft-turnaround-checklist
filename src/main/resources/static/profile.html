@@ -16,16 +16,19 @@
         <table class="table" id="me"></table>
         <p class="wip">Заявку на изменение ФИО и смену пароля делает команда «Авторизация» вместе с Keycloak: спецификация API 5.5, 5.6, 10.2.</p>
     </div>
-    <h2>Мои действия за сегодня</h2>
-    <table class="table">
-        <thead><tr><th>Время</th><th>Действие</th><th>Объект</th><th>Оборот</th></tr></thead>
-        <tbody id="rows"></tbody>
-    </table>
+    <h2>Мои действия за смену</h2>
+    <div class="table-wrap">
+        <table class="table">
+            <thead><tr><th>Время</th><th>Действие</th><th>Объект</th><th>Было</th><th>Стало</th></tr></thead>
+            <tbody id="rows"></tbody>
+        </table>
+    </div>
 </main>
 <script type="module">
     import { startPage, showError } from '/js/layout.js';
     import { api } from '/js/api.js';
-    import { time, today, escapeHtml } from '/js/format.js';
+    import { localIso, escapeHtml } from '/js/format.js';
+    import { logRows } from '/js/journal.js';
 
     const me = await startPage({ active: 'profile' });
     const fio = [me.lastName, me.firstName, me.middleName].filter(Boolean).join(' ') || '—';
@@ -34,13 +37,18 @@
         <tr><td>ФИО</td><td>${escapeHtml(fio)}</td></tr>
         <tr><td>Роли</td><td>${escapeHtml(me.roles.join(', '))}</td></tr>
         <tr><td>Права</td><td class="small">${escapeHtml(me.permissions.join(', '))}</td></tr>`;
+    // Мои действия за смену (ФТ-42): за последние 12 часов, это наибольшая длина сессии по ЧТЗ.
+    // Блок делает команда «Данные», записи отдаёт GET /log (спецификация 8.1, 10.2).
     try {
-        // без права log.read_all сервер отдаёт только свои записи (ФТ-42)
-        const { items } = await api.get('/log', { date: today(), user: me.login });
-        document.getElementById('rows').innerHTML = items.map((r) => `
-            <tr><td>${time(r.time)}</td><td>${escapeHtml(r.actionType)}</td>
-                <td>${escapeHtml(r.entity ?? '')} ${r.entityId ?? ''}</td><td class="center">${r.turnaroundId ?? ''}</td></tr>`).join('')
-            || '<tr><td colspan="4" class="center muted">Сегодня действий не было</td></tr>';
+        const shiftStart = new Date(Date.now() - 12 * 3600 * 1000);
+        const { items } = await api.get('/log', { from: localIso(shiftStart), to: localIso(), userId: me.id, size: 100 });
+        document.getElementById('rows').innerHTML = logRows(items, { user: false, withDate: shiftStart.getDate() !== new Date().getDate() });
+        document.getElementById('rows').addEventListener('click', (e) => {
+            const tr = e.target.closest('tr[data-turnaround]');
+            if (tr) {
+                location.href = `/technician/checklist.html?id=${tr.dataset.turnaround}`;
+            }
+        });
     } catch (e) {
         showError(document.getElementById('page'), e);
     }

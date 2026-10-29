@@ -36,6 +36,15 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.FORBIDDEN, "FORBIDDEN", "Недостаточно прав");
     }
 
+    /**
+     * 400 VALIDATION_ERROR с полем в details: экран покажет текст рядом с этим полем (раздел 2.4).
+     * {@code throw ApiException.validation("to", to, "Период больше 31 дня");}
+     */
+    public static ApiException validation(String field, Object value, String message) {
+        return new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message,
+                List.of(new ApiError.Detail(field, value, message)));
+    }
+
     public HttpStatus status() {
         return status;
     }

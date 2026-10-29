@@ -11,54 +11,90 @@
 <header class="app-header"></header>
 <main class="page" id="page">
     <div class="page-header"><h1>Журнал действий</h1></div>
-    <div class="toolbar">
-        <label>Дата <input type="date" class="input" id="date"></label>
-        <label>Пользователь <input class="input" id="user" placeholder="логин"></label>
-        <label>Оборот <input class="input" id="turnaround" placeholder="№" size="6"></label>
-        <button class="btn" id="apply">Показать</button>
-        <span class="muted small" id="total"></span>
-    </div>
+    <form class="toolbar" id="filters">
+        <label>С <input type="date" class="input" name="from" required></label>
+        <label>по <input type="date" class="input" name="to" required></label>
+        <label id="userFilter">Пользователь <select class="select" name="userId"><option value="">Все</option></select></label>
+        <label>Действие <select class="select" name="actionType"><option value="">Все</option></select></label>
+        <label>Оборот <input class="input" name="turnaroundId" inputmode="numeric" pattern="[0-9]*" size="7"></label>
+        <button class="btn btn-primary" style="margin-left: auto">Показать</button>
+    </form>
     <div class="table-wrap">
         <table class="table">
-            <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Оборот</th><th>Было</th><th>Стало</th></tr></thead>
+            <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Объект</th><th>Было</th><th>Стало</th></tr></thead>
             <tbody id="rows"></tbody>
         </table>
     </div>
-    <p class="wip">Фильтр по действию, период до 31 дня и постраничный вывод добавляет команда «Данные»: спецификация API, раздел 8.1.</p>
+    <div id="pager"></div>
+    <p class="muted small">Записи журнала нельзя изменить или удалить. Нажатие на запись об обороте открывает его чек-лист.
+        Техник видит здесь только свои действия: фильтра «Пользователь» у него нет.</p>
 </main>
 <script type="module">
-    import { startPage, showError } from '/js/layout.js';
+    import { startPage, can, showError } from '/js/layout.js';
     import { api } from '/js/api.js';
-    import { time, today, escapeHtml } from '/js/format.js';
+    import { today, escapeHtml } from '/js/format.js';
+    import { showFieldErrors, clearFieldErrors, pager } from '/js/ui.js';
+    import { ACTION_TYPES, logRows } from '/js/journal.js';
 
-    await startPage({ active: 'log' });
-    document.getElementById('date').value = today();
-    const json = (v) => (v ? escapeHtml(JSON.stringify(v)) : '');
+    const SIZE = 50;
+    const me = await startPage({ active: 'log' });
+    const page = document.getElementById('page');
+    const form = document.getElementById('filters');
 
-    async function load() {
+    // фильтры можно передать в адресе: /log/index.html?turnaroundId=5812&from=2026-10-27&to=2026-10-28
+    const query = new URLSearchParams(location.search);
+    form.from.value = query.get('from') || today();
+    form.to.value = query.get('to') || form.from.value;
+    form.turnaroundId.value = query.get('turnaroundId') || '';
+    form.actionType.insertAdjacentHTML('beforeend',
+        Object.entries(ACTION_TYPES).map(([code, name]) => `<option value="${code}">${escapeHtml(name)}</option>`).join(''));
+
+    // фильтр по пользователю есть только у супервайзера (ФТ-42); список отдаёт команда «Авторизация»
+    if (!can(me, 'log.read_all')) {
+        document.getElementById('userFilter').remove();
+    } else {
+        api.get('/users', { size: 100 }).then(({ items }) => {
+            form.userId.insertAdjacentHTML('beforeend', items.map((u) =>
+                `<option value="${u.id}">${escapeHtml(u.shortName ?? u.login)} (${escapeHtml(u.login)})</option>`).join(''));
+        }).catch(() => {
+            form.userId.disabled = true;
+            form.userId.title = 'Список появится вместе с GET /users (команда «Авторизация»)';
+        });
+    }
+
+    async function load(pageNo = 1) {
+        clearFieldErrors(form);
         try {
             const data = await api.get('/log', {
-                date: document.getElementById('date').value,
-                user: document.getElementById('user').value.trim(),
-                turnaroundId: document.getElementById('turnaround').value.trim(),
+                from: `${form.from.value}T00:00:00`,
+                to: `${form.to.value}T23:59:59`,
+                userId: form.userId?.value,
+                actionType: form.actionType.value,
+                turnaroundId: form.turnaroundId.value.trim(),
+                page: pageNo,
+                size: SIZE,
             });
-            document.getElementById('total').textContent = `записей: ${data.total}`;
-            document.getElementById('rows').innerHTML = data.items.map((r) => `
-                <tr>
-                    <td class="nowrap">${time(r.time)}:${r.time.substring(17, 19)}</td>
-                    <td>${escapeHtml(r.user)}</td>
-                    <td>${escapeHtml(r.actionType)}</td>
-                    <td class="nowrap">${escapeHtml(r.entity ?? '')} ${r.entityId ?? ''}</td>
-                    <td class="center">${r.turnaroundId ? `<a href="/technician/checklist.html?id=${r.turnaroundId}">${r.turnaroundId}</a>` : ''}</td>
-                    <td class="small mono">${json(r.oldValue)}</td>
-                    <td class="small mono">${json(r.newValue)}</td>
-                </tr>`).join('') || '<tr><td colspan="7" class="center muted">Записей нет</td></tr>';
+            const withDate = form.from.value !== form.to.value;
+            document.getElementById('rows').innerHTML = logRows(data.items, { withDate });
+            pager(document.getElementById('pager'), { page: pageNo, size: SIZE, total: data.total, onPage: load });
         } catch (e) {
-            showError(document.getElementById('page'), e);
+            if (!showFieldErrors(form, e)) {
+                showError(page, e);
+            }
         }
     }
-    document.getElementById('apply').addEventListener('click', load);
-    load();
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        load(1);
+    });
+    document.getElementById('rows').addEventListener('click', (e) => {
+        const tr = e.target.closest('tr[data-turnaround]');
+        if (tr) {
+            location.href = `/technician/checklist.html?id=${tr.dataset.turnaround}`;
+        }
+    });
+    load(1);
 </script>
 </body>
 </html>

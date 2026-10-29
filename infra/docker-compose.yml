@@ -45,6 +45,28 @@ services:
       db:
         condition: service_healthy
 
+  # Резервные копии раз в сутки, хранятся 14 дней (НФТ-4). Включается флагом --profile backup,
+  # копии лежат в infra/backup/data. Как восстановить: docs/backup.md
+  backup:
+    profiles: ["backup"]
+    image: postgres:16
+    entrypoint: ["sh", "/backup.sh"]
+    command: ["daily"]
+    environment:
+      PGHOST: db
+      PGUSER: checklist
+      PGPASSWORD: checklist
+      PGDATABASE: checklist
+      TZ: Europe/Moscow
+      KEEP_DAYS: 14
+      BACKUP_AT: "03:00"
+    volumes:
+      - ./backup/backup.sh:/backup.sh:ro
+      - ./backup/data:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Приложение в контейнере (для показа и для песочницы). Для разработки удобнее запускать из IDE.
   app:
     profiles: ["app"]

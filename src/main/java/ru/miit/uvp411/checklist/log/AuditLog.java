@@ -17,7 +17,7 @@ public interface AuditLog {
     void record(Entry entry);
 
     /**
-     * @param actionType вид действия из таблицы раздела 8.1 спецификации: login, on_block, op_start, op_finish…
+     * @param actionType вид действия из таблицы 8.1 спецификации: login, on_block, op_start, op_finish… Список в {@link ActionTypes}
      * @param entity     таблица изменённого объекта, например operation_exec
      * @param entityId   id объекта
      * @param turnaroundId оборот, к которому относится действие, или null
