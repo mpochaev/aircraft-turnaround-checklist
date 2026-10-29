@@ -28,11 +28,11 @@ export async function startPage({ active } = {}) {
     const roleNames = { technician: 'техник', supervisor: 'супервайзер' };
     const roles = me.roles.map((r) => roleNames[r] || r).join(', ');
     header.innerHTML = `
+        <a class="app-brand" href="/">Чек-лист ВС</a>
         <nav class="app-nav">${items.map((n) => `<a href="${n.href}" class="${n.id === active ? 'active' : ''}">${n.text}</a>`).join('')}</nav>
         <div class="app-user">
             <span id="header-counters"></span>
-            <span>${escapeHtml(me.shortName)} (${escapeHtml(roles)})</span>
-            <span class="sep">|</span>
+            <span>${escapeHtml(me.shortName)} <span class="muted">${escapeHtml(roles)}</span></span>
             <a href="#" id="logout">Выход</a>
         </div>`;
     header.querySelector('#logout').addEventListener('click', (e) => { e.preventDefault(); logout(); });

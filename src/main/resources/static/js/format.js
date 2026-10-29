@@ -18,6 +18,12 @@ export function today() {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Дата и время в формате API (YYYY-MM-DDTHH:MM:SS) по часам компьютера, без часового пояса.
+export function localIso(d = new Date()) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export function minutesBetween(fromIso, toIso) {
     return Math.round((new Date(toIso) - new Date(fromIso)) / 60000);
 }

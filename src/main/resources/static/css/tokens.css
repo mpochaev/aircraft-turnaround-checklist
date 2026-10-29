@@ -1,57 +1,64 @@
 /*
  * Дизайн-токены: все цвета, размеры и отступы интерфейса.
- * Значения сняты с согласованных макетов (документ «Макеты интерфейса»).
+ * Интерфейс чёрно-белый: светло-серый фон, белые карточки, чёрный текст.
  * Новые цвета не добавляем: цвет в интерфейсе означает только статус операции (таблица 3 ЧТЗ).
  */
 :root {
-    /* шрифт */
-    --font: Arial, "Helvetica Neue", Helvetica, sans-serif;
-    --font-mono: "Consolas", "Courier New", monospace;
+    /* шрифт: системный, ничего не загружаем из интернета */
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
     --fs-small: 12px;
     --fs-base: 14px;
     --fs-large: 16px;
-    --fs-h1: 20px;
+    --fs-h1: 22px;
     --fs-h2: 16px;
-    --lh: 1.4;
+    --lh: 1.45;
 
     /* основные цвета */
-    --c-text: #000000;
-    --c-muted: #555555;
-    --c-faint: #8c8c8c;
-    --c-bg: #ffffff;
-    --c-surface: #f5f5f5;      /* шапка, заголовки таблиц, боковые панели */
-    --c-selected: #e8e8e8;     /* выбранный пункт списка, активная вкладка */
-    --c-border: #8c8c8c;
-    --c-border-strong: #000000;
+    --c-text: #111111;
+    --c-muted: #6b7280;
+    --c-faint: #9ca3af;
+    --c-bg: #ffffff;           /* карточки, таблицы, поля */
+    --c-page: #f5f6f8;         /* фон страницы */
+    --c-surface: #f3f4f6;      /* заголовки таблиц, наведение, неактивная кнопка */
+    --c-selected: #eceef1;     /* выбранный пункт списка, фон вкладок */
+    --c-border: #e5e7eb;       /* карточки, таблицы */
+    --c-border-strong: #d1d5db; /* кнопки и поля */
+    --c-error: #b91c1c;
 
-    /* статусы операций, таблица 3 ЧТЗ. Всегда вместе с текстом (НФТ-7) */
-    --st-not-started: #eeeeee;
-    --st-in-progress: #fff3b0;
-    --st-done: #d9f2d9;
-    --st-late: #ffdcae;          /* отставание до 10 минут */
-    --st-late-critical: #f7bcbc; /* отставание больше 10 минут */
-    --st-problem: #dcd0f0;
+    /* статусы операций, таблица 3 ЧТЗ. Всегда вместе с текстом (НФТ-7).
+       Отставание светло-красное и красное: так оно не путается с жёлтым «В работе» */
+    --st-not-started: #eceef1;
+    --st-in-progress: #fdf1a3;
+    --st-done: #d5f5de;
+    --st-late: #fde1e1;          /* отставание до 10 минут */
+    --st-late-critical: #f9a9a9; /* отставание больше 10 минут */
+    --st-problem: #ddd5fb;
     --st-not-required: #ffffff;
 
     /* размеры */
-    --radius: 8px;
+    --radius: 8px;             /* кнопки, поля */
+    --radius-lg: 12px;         /* карточки, таблицы, окна */
     --sp-1: 4px;
     --sp-2: 8px;
     --sp-3: 12px;
     --sp-4: 16px;
     --sp-6: 24px;
-    --control-h: 32px;
+    --control-h: 34px;
     --border: 1px solid var(--c-border);
-    --border-strong: 1.5px solid var(--c-border-strong);
+    --border-strong: 1px solid var(--c-border-strong);
+    --shadow: 0 1px 2px rgba(17, 17, 17, 0.06);
+    --shadow-lg: 0 12px 40px rgba(17, 17, 17, 0.18);
 }
 
 /*
  * Экраны техника (планшет): кнопки не меньше 1 × 1 см, основной шрифт не меньше 16 px (НФТ-6).
- * Включается классом touch на <body>.
+ * Включается классом touch на <body> (или на любом блоке, например в витрине).
  */
-body.touch {
+.touch {
     --fs-base: 16px;
     --fs-large: 18px;
-    --fs-h1: 22px;
+    --fs-h1: 24px;
     --control-h: 48px;
+    font-size: var(--fs-base);
 }

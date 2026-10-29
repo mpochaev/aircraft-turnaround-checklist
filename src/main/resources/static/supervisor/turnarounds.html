@@ -55,7 +55,7 @@
 
     function render(items) {
         const problems = items.reduce((s, t) => s + (t.problems || 0), 0);
-        document.getElementById('header-counters').innerHTML = `Проблемы: <span class="counter">${problems}</span> <span class="sep">|</span>`;
+        document.getElementById('header-counters').innerHTML = `Проблемы <span class="counter">${problems}</span>`;
         const shown = onlyLate.checked ? items.filter((t) => t.delayRisk || t.problems > 0) : items;
         document.getElementById('rows').innerHTML = shown.length ? shown.map((t) => `
             <tr class="clickable" data-id="${t.id}">

@@ -6,5 +6,7 @@ target/
 Thumbs.db
 .env
 tools/demo-data/out/
+tools/design/out/
 __pycache__/
 *.log
+infra/backup/data/

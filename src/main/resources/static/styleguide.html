@@ -7,155 +7,618 @@
     <link rel="stylesheet" href="/css/tokens.css">
     <link rel="stylesheet" href="/css/ui.css">
     <style>
-        .sg-section { margin-bottom: 40px; max-width: 1100px; }
-        .sg-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: var(--sp-3) 0; }
-        .sg-swatch { width: 150px; border: var(--border); font-size: var(--fs-small); }
-        .sg-swatch div { height: 48px; border-bottom: var(--border); }
-        .sg-swatch p { margin: var(--sp-2); }
-        .sg-code { font-family: var(--font-mono); font-size: var(--fs-small); background: var(--c-surface); padding: 1px 4px; }
-        .sg-touch { border: var(--border); padding: var(--sp-4); }
+        /* стили только для этой витрины, на страницах приложения не используются */
+        .sg { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+        .sg-nav { background: var(--c-bg); border-right: var(--border); }
+        .sg-nav-in { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; padding: var(--sp-4) var(--sp-3); }
+        .sg-nav .app-brand { margin: var(--sp-1) var(--sp-2) var(--sp-4); }
+        .sg-nav a:not(.app-brand) { display: block; padding: 5px var(--sp-2); border-radius: var(--radius); text-decoration: none; }
+        .sg-nav a:not(.app-brand):hover { background: var(--c-surface); }
+        .sg-nav a.sub { padding-left: var(--sp-4); color: var(--c-muted); font-size: 13px; }
+        .sg-nav .sg-note { padding: 0 var(--sp-2); margin-top: var(--sp-4); }
+        .sg-main { padding: 40px; max-width: 1240px; }
+        .sg-main > h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+        .sg-main > section { margin-top: 56px; }
+        .sg-main > section > h2 { font-size: 20px; margin: 0 0 var(--sp-3); }
+        .sg-main h3 { font-size: var(--fs-large); font-weight: 600; margin: var(--sp-6) 0 var(--sp-2); }
+        .sg-lead { max-width: 760px; }
+        ol.sg-lead li { margin-bottom: 6px; }
+        .sg-demo { background: var(--c-bg); border: var(--border); border-radius: var(--radius-lg); padding: 20px; margin: var(--sp-2) 0; }
+        .sg-demo.flat { background: var(--c-page); padding: 0; overflow: hidden; }
+        .sg-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; }
+        .sg-row.top { align-items: flex-start; }
+        .sg-note { color: var(--c-muted); font-size: 13px; margin: var(--sp-2) 0 0; max-width: 860px; }
+        code, .sg-code { font-family: var(--font-mono); font-size: 12px; background: var(--c-selected); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+        pre { font-family: var(--font-mono); font-size: 12px; line-height: 1.6; background: var(--c-bg); border: var(--border); border-radius: var(--radius-lg); padding: var(--sp-4); overflow-x: auto; margin: var(--sp-2) 0; }
+        .sg-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-3); }
+        .sg-swatch { background: var(--c-bg); border: var(--border); border-radius: var(--radius-lg); font-size: var(--fs-small); overflow: hidden; }
+        .sg-swatch > div { height: 64px; border-bottom: var(--border); }
+        .sg-swatch p { margin: 10px var(--sp-3); }
+        .sg-type td:first-child { white-space: nowrap; }
+        .sg-space { display: flex; align-items: center; gap: var(--sp-3); margin: 8px 0; }
+        .sg-space i { display: inline-block; height: 16px; border-radius: 3px; background: var(--c-text); }
+        .sg-space span { width: 90px; }
+        .sg-compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+        .sg-screen { background: var(--c-page); border: var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); margin: var(--sp-3) 0 var(--sp-6); overflow-x: auto; }
+        .sg-screen .page { min-width: 900px; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
+        .sg-screen .app-header { min-width: 900px; }
+        .sg-popup { padding: var(--sp-4); max-width: 340px; background: var(--c-bg); border: var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+        .sg-popup .actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
+        .sg-popup .select { margin-top: var(--sp-2); }
+        .sg-good { font-weight: 600; }
+        .sg-table { max-width: 980px; }
+        .sg-table td { vertical-align: top; }
+        @media (max-width: 860px) {
+            .sg { grid-template-columns: minmax(0, 1fr); }
+            .sg-swatches { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+            .sg-table, .sg-compare .table { display: block; overflow-x: auto; }
+            .sg-nav { border-right: 0; border-bottom: var(--border); }
+            .sg-nav-in { position: static; max-height: none; }
+            .sg-main { padding: var(--sp-6) var(--sp-4); }
+            .sg-compare { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
-<header class="app-header">
-    <nav class="app-nav"><a href="#" class="active">Обороты</a><a href="#">Справочники</a><a href="#">Пользователи</a><a href="#">Журнал</a><a href="#">История</a></nav>
-    <div class="app-user">Проблемы: <span class="counter">1</span> <span class="sep">|</span> Заявки: <span class="counter">2</span>
-        <span class="sep">|</span> Петрова А. (супервайзер) <span class="sep">|</span> <a href="#">Выход</a></div>
-</header>
-<main class="page">
-    <div class="page-header">
-        <h1>Дизайн-система</h1>
-        <div class="actions"><a class="btn" href="/">В приложение</a></div>
-    </div>
-    <p class="muted">Все экраны собираются из этих компонентов. Стили: <span class="sg-code">/css/tokens.css</span> и
-        <span class="sg-code">/css/ui.css</span>. Правила: docs/design-system.md. Своих цветов и шрифтов на страницах не заводим.</p>
+<div class="sg">
+<nav class="sg-nav"><div class="sg-nav-in">
+    <a class="app-brand" href="#top">Дизайн-система</a>
+    <a href="#principles">1. Принципы</a>
+    <a href="#colors">2. Цвета</a>
+    <a href="#type">3. Шрифт</a>
+    <a href="#sizes">4. Размеры и отступы</a>
+    <a href="#components">5. Компоненты</a>
+    <a class="sub" href="#c-header">шапка и заголовок</a>
+    <a class="sub" href="#c-buttons">кнопки</a>
+    <a class="sub" href="#c-fields">поля</a>
+    <a class="sub" href="#c-table">таблица</a>
+    <a class="sub" href="#c-status">статусы операций</a>
+    <a class="sub" href="#c-badges">значки</a>
+    <a class="sub" href="#c-tabs">вкладки и список</a>
+    <a class="sub" href="#c-tiles">плитки и листалка</a>
+    <a class="sub" href="#c-alerts">сообщения</a>
+    <a class="sub" href="#c-tip">подсказка</a>
+    <a class="sub" href="#c-dialog">окна</a>
+    <a href="#touch">6. Планшет</a>
+    <a href="#screens">7. Экраны</a>
+    <a href="#texts">8. Тексты и форматы</a>
+    <a href="#code">9. Подключение</a>
+    <a href="#changes">10. Как менять</a>
+    <p class="sg-note">Версия 1.1, 28.10.2026</p>
+</div></nav>
 
-    <section class="sg-section">
-        <h2>Цвета</h2>
-        <p class="muted">Интерфейс чёрно-белый. Цвет означает только статус операции, и рядом с цветом всегда есть текст (НФТ-7).</p>
-        <div class="sg-row" id="swatches"></div>
+<main class="sg-main" id="top">
+    <h1>Дизайн-система</h1>
+    <p class="muted">Цифровой чек-лист подготовки ВС к вылету · УВП-411</p>
+    <p class="sg-lead">Все экраны системы собираются из компонентов на этой странице. Так у четырёх команд получится один интерфейс.
+        Интерфейс простой и чёрно-белый: светло-серый фон, белые карточки, чёрный текст, скруглённые углы. Цвет есть только у статусов операций.</p>
+    <p class="sg-lead">Стили лежат в репозитории: <code>src/main/resources/static/css/tokens.css</code> (цвета и размеры) и
+        <code>ui.css</code> (компоненты). В запущенном приложении эта страница открывается по адресу <code>/styleguide.html</code>.</p>
+
+    <!-- 1 -->
+    <section id="principles">
+        <h2>1. Принципы</h2>
+        <ol class="sg-lead">
+            <li><b>Цвета берём только из tokens.css.</b> Своих цветов, шрифтов и размеров на страницах не заводим.</li>
+            <li><b>Цвет означает статус операции.</b> Рядом с цветом всегда есть текст или время, чтобы экран читался и без цвета (НФТ-7).</li>
+            <li><b>Экраны техника рассчитаны на планшет.</b> Кнопки высотой 48 px (больше 1 см), шрифт 16 px (НФТ-6).</li>
+            <li><b>Одна главная кнопка на экране.</b> Главная кнопка чёрная, остальные белые с серой рамкой.</li>
+            <li><b>Недоступная кнопка остаётся на месте.</b> Она серая, а рядом или в подсказке написано, почему её нельзя нажать: «ждёт: заправка, питание».</li>
+            <li><b>Время пишем ЧЧ:ММ, дату ДД.ММ.ГГГГ</b>, всё в местном времени базового аэропорта.</li>
+            <li><b>Подписи берём из ЧТЗ:</b> «Постановка ВС», «Начать», «Завершить», «Проблема», «Отправление ВС». Синонимы не придумываем.</li>
+            <li><b>Таблицы и чек-лист обновляются сами</b> раз в 15 секунд, без перезагрузки страницы.</li>
+        </ol>
     </section>
 
-    <section class="sg-section">
-        <h2>Кнопки</h2>
-        <div class="sg-row">
-            <button class="btn">Обычная</button>
-            <button class="btn btn-primary">Главное действие</button>
-            <button class="btn" disabled>Недоступна</button>
-            <button class="btn btn-wide">Широкая</button>
+    <!-- 2 -->
+    <section id="colors">
+        <h2>2. Цвета</h2>
+        <h3>Основные</h3>
+        <div class="sg-swatches">
+            <div class="sg-swatch"><div style="background: var(--c-text)"></div><p><b>Текст</b><br>текст, главная кнопка<br><span class="mono" data-token="--c-text"></span></p></div>
+            <div class="sg-swatch"><div style="background: var(--c-muted)"></div><p><b>Подписи</b><br>второстепенный текст, меню<br><span class="mono" data-token="--c-muted"></span></p></div>
+            <div class="sg-swatch"><div style="background: var(--c-page)"></div><p><b>Фон страницы</b><br>под карточками и таблицами<br><span class="mono" data-token="--c-page"></span></p></div>
+            <div class="sg-swatch"><div style="background: var(--c-bg)"></div><p><b>Карточки</b><br>шапка, таблицы, поля, окна<br><span class="mono" data-token="--c-bg"></span></p></div>
+            <div class="sg-swatch"><div style="background: var(--c-surface)"></div><p><b>Серый фон</b><br>заголовки таблиц, наведение<br><span class="mono" data-token="--c-surface"></span></p></div>
+            <div class="sg-swatch"><div style="background: var(--c-border-strong)"></div><p><b>Рамки</b><br>кнопки и поля; у карточек светлее<br><span class="mono" data-token="--c-border-strong"></span></p></div>
+            <div class="sg-swatch"><div style="background: var(--c-error)"></div><p><b>Ошибка</b><br>рамка поля и текст ошибки<br><span class="mono" data-token="--c-error"></span></p></div>
         </div>
-        <p class="muted small">Классы: <span class="sg-code">btn</span>, <span class="sg-code">btn btn-primary</span> (одна на экран),
-            <span class="sg-code">btn-wide</span>. Недоступная кнопка остаётся на месте с подсказкой title, почему она неактивна.</p>
+        <h3>Статусы операций (ЧТЗ, таблица 3)</h3>
+        <div class="sg-swatches">
+            <div class="sg-swatch"><div class="st-not_started"></div><p><b>Не начата</b><br>плановое время начала<br><span class="mono" data-token="--st-not-started"></span></p></div>
+            <div class="sg-swatch"><div class="st-in_progress"></div><p><b>В работе</b><br>прошло из норматива, 13 / 15<br><span class="mono" data-token="--st-in-progress"></span></p></div>
+            <div class="sg-swatch"><div class="st-done"></div><p><b>Выполнена в срок</b><br>время окончания<br><span class="mono" data-token="--st-done"></span></p></div>
+            <div class="sg-swatch"><div class="st-late"></div><p><b>Отставание до 10 мин</b><br>время и «+N»<br><span class="mono" data-token="--st-late"></span></p></div>
+            <div class="sg-swatch"><div class="st-late_critical"></div><p><b>Отставание больше 10 мин</b><br>«+N» и код задержки<br><span class="mono" data-token="--st-late-critical"></span></p></div>
+            <div class="sg-swatch"><div class="st-problem"></div><p><b>Проблема</b><br>«! Проблема»<br><span class="mono" data-token="--st-problem"></span></p></div>
+            <div class="sg-swatch"><div class="st-not_required"></div><p><b>Не требуется</b><br>прочерк<br><span class="mono" data-token="--st-not-required"></span></p></div>
+        </div>
+        <p class="sg-note">Отставание считается от планового окончания: у выполненной операции по факту окончания, у операции в работе по текущему времени.
+            Класс ячейки считает функция <code>operationClass(op, now)</code> из <code>/js/format.js</code>, вручную его не выбираем.</p>
+        <p class="sg-note">В ЧТЗ (таблица 3) отставание до 10 минут оранжевое. Здесь оно светло-красное: оранжевый плохо отличается от жёлтого «В работе»,
+            а два оттенка красного читаются как «опаздывает» и «сильно опаздывает». При следующей правке ЧТЗ таблицу 3 поменяем.</p>
     </section>
 
-    <section class="sg-section">
-        <h2>Поля</h2>
-        <div class="sg-row" style="align-items: flex-start">
-            <label class="field"><span>Логин</span><input class="input" value="tech07"></label>
-            <label class="field"><span>Стоянка</span><select class="select"><option>124</option><option>125</option></select></label>
-            <label class="field invalid"><span>Номер рейса</span><input class="input" value="10A1">
-                <span class="field-error">От 1 до 4 цифр</span></label>
-            <label class="field"><span>Что случилось (обязательно)</span><textarea class="textarea" cols="30">Треснул заправочный шланг</textarea></label>
-        </div>
-        <p class="muted small">Ошибка проверки показывается под полем (ФТ-18): у <span class="sg-code">field</span> класс
-            <span class="sg-code">invalid</span>, текст в <span class="sg-code">field-error</span>, поле берётся из details[].field ответа API.</p>
-    </section>
-
-    <section class="sg-section">
-        <h2>Таблица и статусы операций</h2>
-        <div class="toolbar">
-            <label>Дата <input type="date" class="input" value="2026-10-27"></label>
-            <label>Стоянки <select class="select"><option>120–150</option></select></label>
-            <label><input type="checkbox"> только с отставанием или проблемой</label>
-        </div>
-        <table class="table">
-            <thead><tr><th>Оборот</th><th>Борт / тип</th><th>Ст.</th><th>Трап</th><th>Высадка</th><th>Выгрузка</th><th>Заправка</th><th>Уборка</th><th>Питание</th><th>Посадка</th><th>ПОО</th><th>Прогресс</th><th>Статус</th></tr></thead>
+    <!-- 3 -->
+    <section id="type">
+        <h2>3. Шрифт</h2>
+        <p class="sg-lead">Системный шрифт: Segoe UI на Windows, Roboto на Android-планшете, San Francisco на Mac. Из интернета ничего не загружается,
+            поэтому стенд работает и без выхода в сеть. Цифры в таблицах одной ширины, столбец с числами выравниваем вправо классом <code>num</code>.</p>
+        <table class="table sg-table sg-type">
+            <thead><tr><th>Образец</th><th>Компьютер</th><th>Планшет</th><th>Где</th></tr></thead>
             <tbody>
-            <tr class="clickable">
-                <td>SU 1001 / 1002</td><td>RA-73725 A320</td><td class="center">124</td>
-                <td class="center st-done">10:05</td><td class="center st-done">10:15</td><td class="center st-late">10:19 +2</td>
-                <td class="center st-problem" data-tip="Заправка топливом · Проблема&#10;План: 10:15–10:35&#10;Комментарий: треснул шланг">! Проблема</td>
-                <td class="center st-late_critical">+14 (35)</td><td class="center st-in_progress">13 / 15</td>
-                <td class="center st-not_started">10:35</td><td class="center st-not_required">—</td>
-                <td class="center">6 / 11</td><td>Обслуживание</td>
-            </tr>
+            <tr><td style="font-size: 22px; font-weight: 600">Таблица оборотов</td><td class="center">22 px</td><td class="center">24 px</td><td>заголовок страницы <code>h1</code></td></tr>
+            <tr><td style="font-size: 16px; font-weight: 600">Нормативы операций</td><td class="center">16 px</td><td class="center">18 px</td><td>заголовок блока <code>h2</code>, заголовок окна</td></tr>
+            <tr><td style="font-size: 14px">Заправка топливом, 10:15–10:35</td><td class="center">14 px</td><td class="center">16 px</td><td>основной текст, меню, таблицы, кнопки</td></tr>
+            <tr><td style="font-size: 12px">requestId: c0a8-2f41</td><td class="center">12 px</td><td class="center">12 px</td><td>подсказки, легенда, служебный текст <code>small</code></td></tr>
             </tbody>
         </table>
-        <div class="legend">
-            <span><i class="st-not_started"></i> не начата</span><span><i class="st-in_progress"></i> в работе</span>
-            <span><i class="st-done"></i> в срок</span><span><i class="st-late"></i> отставание до 10 мин</span>
-            <span><i class="st-late_critical"></i> отставание больше 10 мин</span><span><i class="st-problem"></i> проблема</span>
-            <span><i class="st-not_required"></i> не требуется</span>
+    </section>
+
+    <!-- 4 -->
+    <section id="sizes">
+        <h2>4. Размеры и отступы</h2>
+        <div class="sg-compare">
+            <div>
+                <h3>Отступы</h3>
+                <div class="sg-space"><span><code>--sp-1</code></span><i style="width: 4px"></i> 4 px</div>
+                <div class="sg-space"><span><code>--sp-2</code></span><i style="width: 8px"></i> 8 px</div>
+                <div class="sg-space"><span><code>--sp-3</code></span><i style="width: 12px"></i> 12 px</div>
+                <div class="sg-space"><span><code>--sp-4</code></span><i style="width: 16px"></i> 16 px, поля страницы</div>
+                <div class="sg-space"><span><code>--sp-6</code></span><i style="width: 24px"></i> 24 px</div>
+            </div>
+            <div>
+                <h3>Элементы</h3>
+                <table class="table">
+                    <tbody>
+                    <tr><td>Высота кнопок и полей <code>--control-h</code></td><td class="center">34 px, на планшете 48 px</td></tr>
+                    <tr><td>Скругление кнопок и полей <code>--radius</code></td><td class="center">8 px</td></tr>
+                    <tr><td>Скругление карточек и таблиц <code>--radius-lg</code></td><td class="center">12 px</td></tr>
+                    <tr><td>Рамка карточек и таблиц</td><td class="center">1 px #e5e7eb</td></tr>
+                    <tr><td>Рамка кнопок и полей</td><td class="center">1 px #d1d5db</td></tr>
+                    <tr><td>Ширина экрана супервайзера</td><td class="center">от 1280 px</td></tr>
+                    <tr><td>Экран техника</td><td class="center">планшет 10"</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <p class="muted small">Класс ячейки: <span class="sg-code">st-{status}</span>, для отставания <span class="sg-code">st-late</span> и
-            <span class="sg-code">st-late_critical</span>. Считать класс функцией <span class="sg-code">operationClass()</span> из /js/format.js.
-            Подсказка при наведении: атрибут <span class="sg-code">data-tip</span>.</p>
     </section>
 
-    <section class="sg-section">
-        <h2>Вкладки, списки, значки</h2>
-        <div class="tabs"><button class="tab">Пользователи</button><button class="tab active">Заявки (2)</button><button class="tab">Роли и права</button></div>
-        <div class="split">
-            <ul class="list"><li>Аэропорты</li><li class="selected">Нормативы операций</li><li>Коды задержек</li></ul>
-            <div class="sg-row"><span class="badge">Запланирован</span><span class="badge st-in_progress">В работе</span>
-                <span class="badge st-problem">Проблема</span><span class="badge st-done">Выполнена</span></div>
+    <!-- 5 -->
+    <section id="components">
+        <h2>5. Компоненты</h2>
+
+        <h3 id="c-header">Шапка, заголовок страницы, фильтры</h3>
+        <div class="sg-demo flat">
+            <header class="app-header">
+                <a class="app-brand" href="#c-header">Чек-лист ВС</a>
+                <nav class="app-nav"><a href="#c-header" class="active">Обороты</a><a href="#c-header">Справочники</a><a href="#c-header">Пользователи</a><a href="#c-header">Журнал</a><a href="#c-header">История</a></nav>
+                <div class="app-user"><span>Проблемы <span class="counter">1</span></span><span>Заявки <span class="counter">2</span></span>
+                    <span>Петрова А. <span class="muted">супервайзер</span></span><a href="#c-header">Выход</a></div>
+            </header>
+            <div class="page">
+                <div class="page-header"><h1>Таблица оборотов</h1><div class="actions"><button class="btn">Создать оборот</button></div></div>
+                <div class="toolbar" style="margin-bottom: 0">
+                    <label>Дата <input type="date" class="input" value="2026-10-27"></label>
+                    <label>Стоянки <select class="select"><option>120–150</option></select></label>
+                    <label>Авиакомпания <select class="select"><option>Все</option></select></label>
+                    <label><input type="checkbox"> только с отставанием или проблемой</label>
+                </div>
+            </div>
         </div>
-    </section>
+        <p class="sg-note">Шапку рисует <code>startPage()</code> из <code>/js/layout.js</code>: пункты меню показываются по правам пользователя, активный пункт выделен серым.
+            Счётчики проблем и заявок стоят справа (<code>counter</code>). Классы: <code>app-header</code>, <code>app-brand</code>, <code>page</code>, <code>page-header</code>, <code>toolbar</code>.</p>
 
-    <section class="sg-section">
-        <h2>Сообщения и пустые состояния</h2>
-        <div class="alert alert-error">Сначала завершите: Высадка пассажиров<div class="request-id">requestId: c0a8-2f41</div></div>
-        <div class="alert">Пароль изменён</div>
-        <div class="empty">Оборотов нет</div>
-        <p class="muted small">Ошибка API показывается функцией <span class="sg-code">showError()</span> из /js/layout.js: текст из
-            error.message и requestId для поиска в логах.</p>
-    </section>
+        <h3 id="c-buttons">Кнопки</h3>
+        <div class="sg-demo">
+            <div class="sg-row">
+                <button class="btn btn-primary">Подтвердить</button>
+                <button class="btn">Отмена</button>
+                <button class="btn" disabled title="ждёт: заправка, питание">Начать</button>
+                <span class="muted">ждёт: заправка, питание</span>
+                <button class="btn btn-wide">Постановка ВС</button>
+            </div>
+        </div>
+        <table class="table sg-table">
+            <thead><tr><th>Класс</th><th>Когда</th></tr></thead>
+            <tbody>
+            <tr><td><code>btn btn-primary</code></td><td>главное действие экрана, одна кнопка: «Создать», «Сообщить», «Подтвердить»</td></tr>
+            <tr><td><code>btn</code></td><td>все остальные действия</td></tr>
+            <tr><td><code>btn</code> + <code>disabled</code></td><td>действие пока нельзя выполнить. Причину пишем рядом или в <code>title</code></td></tr>
+            <tr><td><code>btn btn-wide</code></td><td>крупные действия над оборотом: «Постановка ВС», «Отправление ВС»</td></tr>
+            </tbody>
+        </table>
 
-    <section class="sg-section">
-        <h2>Окно подтверждения</h2>
-        <button class="btn" onclick="document.getElementById('dlg').showModal()">Подтвердить готовность</button>
-        <dialog class="dialog" id="dlg">
-            <h2>Подтвердить готовность ВС?</h2>
-            <p>SU 1001 / 1002 · RA-73725 · стоянка 124. Все обязательные операции выполнены.</p>
-            <div class="actions"><button class="btn" onclick="this.closest('dialog').close()">Отмена</button>
-                <button class="btn btn-primary" onclick="this.closest('dialog').close()">Подтвердить</button></div>
-        </dialog>
-        <p class="muted small">Элемент <span class="sg-code">&lt;dialog class="dialog"&gt;</span>, открытие <span class="sg-code">showModal()</span>.</p>
-    </section>
+        <h3 id="c-fields">Поля</h3>
+        <div class="sg-demo">
+            <div class="sg-row top">
+                <label class="field"><span>Номер рейса</span><input class="input" value="1001"></label>
+                <label class="field"><span>Стоянка</span><select class="select"><option>124</option><option>125</option></select></label>
+                <label class="field invalid"><span>Код стоянки</span><input class="input" value="151"><span class="field-error">Код 151 уже есть</span></label>
+                <label class="field"><span>Что случилось (обязательно)</span><textarea class="textarea" cols="32">Треснул заправочный шланг, ждём замену</textarea></label>
+            </div>
+        </div>
+        <p class="sg-note">Подпись над полем: <code>field</code> &gt; <code>span</code>. Ошибка проверки показывается под полем (ФТ-18): у <code>field</code>
+            класс <code>invalid</code>, текст в <code>field-error</code>. Какое поле подсветить, берём из <code>details[].field</code> ответа API.
+            Это делает функция <code>showFieldErrors(form, err)</code> из <code>/js/ui.js</code>: поле ищется по атрибуту <code>name</code>.
+            Выпадающий список из справочника заполняет <code>refSelect(select, 'aircraft-types')</code>, в нём только активные записи.</p>
 
-    <section class="sg-section">
-        <h2>Экраны техника (планшет)</h2>
-        <p class="muted">На страницах техника у <span class="sg-code">&lt;body&gt;</span> класс <span class="sg-code">touch</span>:
-            кнопки высотой 48 px (больше 1 см), шрифт 16 px (НФТ-6).</p>
-        <div class="sg-touch" id="touchDemo">
+        <h3 id="c-table">Таблица</h3>
+        <div class="sg-demo">
             <table class="table">
-                <thead><tr><th>№</th><th>Операция</th><th>План</th><th>Факт</th><th>Отметка</th></tr></thead>
+                <thead><tr><th>Код</th><th>Название</th><th>Тип</th><th>Мест</th><th>Активна</th></tr></thead>
                 <tbody>
-                <tr><td class="center">6</td><td>Заправка топливом</td><td class="center">10:15–10:35</td><td class="center">10:16</td>
-                    <td class="st-in_progress"><button class="btn">Завершить</button> <button class="btn">Проблема</button> (13 / 20 мин)</td></tr>
-                <tr><td class="center">10</td><td>Посадка пассажиров</td><td class="center">10:35–10:55</td><td></td>
-                    <td class="st-not_started"><button class="btn" disabled>Начать</button> <span class="muted">ждёт: заправка, питание</span></td></tr>
+                <tr class="clickable"><td class="center">124</td><td>Стоянка 124</td><td>контактная</td><td class="num">1</td><td class="center">да</td></tr>
+                <tr class="clickable"><td class="center">131</td><td>Стоянка 131</td><td>удалённая</td><td class="num">1</td><td class="center">да</td></tr>
+                <tr class="clickable"><td class="center">151</td><td>Стоянка 151</td><td>удалённая</td><td class="num">1</td><td class="center muted">нет</td></tr>
                 </tbody>
             </table>
         </div>
+        <p class="sg-note">Классы: <code>table</code>, строка с переходом <code>clickable</code>, ячейки <code>center</code> и <code>num</code>.
+            Широкие таблицы оборачиваем в <code>table-wrap</code>, тогда появляется горизонтальная прокрутка.
+            У таблицы супервайзера со столбцами операций класс <code>compact</code>: отступы в ячейках меньше, и она помещается на экран 1280 px.</p>
+
+        <h3 id="c-status">Ячейки статусов операций</h3>
+        <div class="sg-demo">
+            <table class="table">
+                <thead><tr><th>Не начата</th><th>В работе</th><th>В срок</th><th>До 10 мин</th><th>Больше 10 мин</th><th>Проблема</th><th>Не требуется</th></tr></thead>
+                <tbody><tr>
+                    <td class="center st-not_started">10:35</td>
+                    <td class="center st-in_progress">13 / 15</td>
+                    <td class="center st-done">10:05</td>
+                    <td class="center st-late">10:19 +2</td>
+                    <td class="center st-late_critical">+14 (36)</td>
+                    <td class="center st-problem">! Проблема</td>
+                    <td class="center st-not_required">—</td>
+                </tr></tbody>
+            </table>
+            <div class="legend">
+                <span><i class="st-not_started"></i> не начата</span><span><i class="st-in_progress"></i> в работе</span>
+                <span><i class="st-done"></i> в срок</span><span><i class="st-late"></i> отставание до 10 мин</span>
+                <span><i class="st-late_critical"></i> отставание больше 10 мин</span><span><i class="st-problem"></i> проблема</span>
+                <span><i class="st-not_required"></i> не требуется</span>
+            </div>
+        </div>
+        <p class="sg-note">Класс <code>st-{status}</code>: <code>st-not_started</code>, <code>st-in_progress</code>, <code>st-done</code>, <code>st-late</code>,
+            <code>st-late_critical</code>, <code>st-problem</code>, <code>st-not_required</code>. «+14 (36)» значит отставание 14 минут и код задержки 36.
+            Под таблицей супервайзера всегда стоит легенда <code>legend</code>.</p>
+
+        <h3 id="c-badges">Значки</h3>
+        <div class="sg-demo">
+            <div class="sg-row">
+                <span class="badge">Запланирован</span><span class="badge">Обслуживание</span><span class="badge">Готов к вылету</span>
+                <span class="badge">Закрыт</span><span class="badge">Отменён</span>
+                <span class="faint">·</span>
+                <span class="badge st-in_progress">В работе</span><span class="badge st-problem">Проблема</span><span class="badge st-done">Выполнена</span>
+            </div>
+        </div>
+        <p class="sg-note">Статус оборота пишем значком без цвета. Цветной значок только у статуса операции (<code>badge</code> + <code>st-…</code>).</p>
+
+        <h3 id="c-tabs">Вкладки и список слева</h3>
+        <div class="sg-demo">
+            <div class="tabs"><button class="tab">Пользователи</button><button class="tab active">Заявки (2)</button><button class="tab">Роли и права</button></div>
+            <div class="split">
+                <ul class="list"><li>Аэропорты</li><li>Стоянки</li><li class="selected">Нормативы операций</li><li>Коды задержек</li></ul>
+                <div class="panel">Содержимое выбранного пункта: таблица и кнопки «Добавить», «Изменить», «Деактивировать».</div>
+            </div>
+        </div>
+        <p class="sg-note">Вкладки: <code>tabs</code>, <code>tab</code>, <code>active</code>. Список с выбором: <code>split</code>, <code>list</code>, <code>selected</code>, справа <code>panel</code>.</p>
+
+        <h3 id="c-tiles">Плитки показателей и листалка страниц</h3>
+        <div class="sg-demo flat" style="padding: 20px">
+            <div class="tiles">
+                <div class="tile"><span>Оборотов закрыто</span><b>184</b></div>
+                <div class="tile"><span>Среднее время оборота</span><b>58 мин</b><small>от постановки до отправления</small></div>
+                <div class="tile"><span>Операций в срок</span><b>87 %</b></div>
+                <div class="tile"><span>Частый код задержки</span><b>36</b><small>Заправка топливом, 17 раз</small></div>
+            </div>
+            <div class="pager"><span>Записи 51–100 из 128</span><button class="btn">Назад</button><button class="btn">Вперёд</button></div>
+        </div>
+        <p class="sg-note">Плитки: <code>tiles</code> и <code>tile</code>, внутри подпись <code>span</code>, значение <code>b</code>, пояснение <code>small</code>. Стоят на экране «История».
+            Листалку под таблицей рисует <code>pager(container, { page, size, total, onPage })</code> из <code>/js/ui.js</code>.
+            Если все записи помещаются на одну страницу, листалки нет.</p>
+
+        <h3 id="c-alerts">Сообщения и пустые состояния</h3>
+        <div class="sg-demo">
+            <div class="alert alert-error">Сначала завершите: Высадка пассажиров<div class="request-id">requestId: c0a8-2f41</div></div>
+            <div class="alert">Пароль изменён</div>
+            <div class="empty">На эту дату оборотов нет</div>
+            <div class="wip" style="margin-top: var(--sp-4)">Экран в разработке: команда «Бизнес-логика», спецификация API 10.6</div>
+        </div>
+        <p class="sg-note">Ошибку API выводит <code>showError(container, err)</code>: текст из <code>error.message</code> и requestId, по которому ошибку находят в логе сервера.
+            <code>empty</code> для пустого списка, <code>wip</code> для экрана, который ещё делается.</p>
+
+        <h3 id="c-tip">Подсказка при наведении</h3>
+        <div class="sg-demo">
+            <table class="table" style="width: auto">
+                <tbody><tr>
+                    <td class="center st-problem" style="width: 140px" data-tip="Заправка топливом · Проблема&#10;План: 10:15–10:35&#10;Начата: 10:16, техник Иванов П.&#10;Комментарий: треснул шланг, ждём замену">! Проблема</td>
+                    <td class="muted">наведите мышь на ячейку</td>
+                </tr></tbody>
+            </table>
+        </div>
+        <p class="sg-note">Атрибут <code>data-tip</code>, перенос строки <code>&amp;#10;</code>. Подсказка дублирует данные, без неё экран тоже понятен.</p>
+
+        <h3 id="c-dialog">Окна</h3>
+        <div class="sg-demo">
+            <div class="sg-row top">
+                <button class="btn btn-primary" data-open="dlgReady">Подтвердить готовность</button>
+                <button class="btn" data-open="dlgProblem">Проблема</button>
+                <div class="sg-popup">
+                    <b>Заправка топливом · Проблема</b><br>
+                    План: 10:15–10:35<br>Начата: 10:16, техник Иванов П.<br>Комментарий: треснул шланг, ждём замену<br>
+                    <label>Код задержки <select class="select"><option>36</option></select></label>
+                    <div class="actions"><button class="btn">Решено</button><button class="btn">Исправить отметку</button></div>
+                </div>
+            </div>
+        </div>
+        <dialog class="dialog" id="dlgReady">
+            <h2>Подтвердить готовность ВС?</h2>
+            <p>SU 1001 / 1002 · RA-73725 · стоянка 124. Все обязательные операции выполнены.</p>
+            <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn btn-primary" data-close>Подтвердить</button></div>
+        </dialog>
+        <dialog class="dialog touch" id="dlgProblem">
+            <h2>Проблема: Заправка топливом</h2>
+            <label class="field"><span>Что случилось (обязательно)</span><textarea class="textarea"></textarea></label>
+            <div class="actions"><button class="btn" data-close>Отмена</button><button class="btn btn-primary" data-close>Сообщить</button></div>
+        </dialog>
+        <p class="sg-note">Окно подтверждения открывает <code>await confirmDialog({ title, text, ok })</code> из <code>/js/ui.js</code>: функция вернёт true,
+            если нажата главная кнопка. Своё окно со сложным содержимым делается так же: <code>&lt;dialog class="dialog"&gt;</code> и <code>showModal()</code>.
+            В заголовке вопрос, в тексте объект: рейсы, борт, стоянка.
+            Окно техника получает класс <code>touch</code>. Карточка ячейки в таблице супервайзера (справа) открывается по нажатию на ячейку.</p>
+    </section>
+
+    <!-- 6 -->
+    <section id="touch">
+        <h2>6. Экраны техника на планшете</h2>
+        <p class="sg-lead">На страницах техника у <code>&lt;body&gt;</code> стоит класс <code>touch</code>. Он увеличивает шрифт до 16 px и кнопки до 48 px
+            (НФТ-6: кнопки не меньше 1 × 1 см). Слева обычный режим, справа планшетный.</p>
+        <div class="sg-compare">
+            <div class="sg-demo">
+                <p class="small muted" style="margin-top: 0">обычный, компьютер супервайзера</p>
+                <div class="sg-row"><button class="btn">Завершить</button><button class="btn">Проблема</button> <span>(13 / 15 мин)</span></div>
+            </div>
+            <div class="sg-demo touch">
+                <p class="small muted" style="margin-top: 0">touch, планшет техника</p>
+                <div class="sg-row"><button class="btn">Завершить</button><button class="btn">Проблема</button> <span>(13 / 15 мин)</span></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 7 -->
+    <section id="screens">
+        <h2>7. Экраны</h2>
+        <p class="sg-lead">Так компоненты складываются в два главных экрана. Остальные экраны собираются так же: шапка, заголовок, фильтры, таблица.</p>
+
+        <h3>Таблица оборотов супервайзера (макет 5, показаны не все столбцы операций)</h3>
+        <div class="sg-screen">
+            <header class="app-header">
+                <a class="app-brand" href="#screens">Чек-лист ВС</a>
+                <nav class="app-nav"><a href="#screens" class="active">Обороты</a><a href="#screens">Справочники</a><a href="#screens">Пользователи</a><a href="#screens">Журнал</a><a href="#screens">История</a></nav>
+                <div class="app-user"><span>Проблемы <span class="counter">1</span></span><span>Заявки <span class="counter">2</span></span>
+                    <span>Петрова А. <span class="muted">супервайзер</span></span><a href="#screens">Выход</a></div>
+            </header>
+            <div class="page">
+                <div class="toolbar">
+                    <label>Дата <input type="date" class="input" value="2026-10-27"></label>
+                    <label>Стоянки <select class="select"><option>120–150</option></select></label>
+                    <label>Авиакомпания <select class="select"><option>Все</option></select></label>
+                    <label><input type="checkbox"> только с отставанием или проблемой</label>
+                    <button class="btn" style="margin-left: auto">Создать оборот</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="table compact nowrap">
+                        <thead><tr><th>Оборот</th><th>Борт / тип</th><th>Ст.</th><th>Пост.</th><th>Трап</th><th>Выгрузка</th><th>Заправка</th><th>Питание</th><th>Загрузка</th><th>Посадка</th><th>ПОО</th><th>Прогресс</th><th>Статус</th></tr></thead>
+                        <tbody>
+                        <tr class="clickable"><td>SU 1234 / 1235</td><td>RA-73711 A320</td><td class="center">140</td><td class="center">08:40</td>
+                            <td class="center st-done">08:43</td><td class="center st-done">08:55</td><td class="center st-done">09:13</td>
+                            <td class="center st-done">09:03</td><td class="center st-done">09:10</td><td class="center st-done">09:33</td>
+                            <td class="center st-not_required">—</td><td class="center">11 / 11</td>
+                            <td class="center" style="white-space: normal"><button class="btn">Подтвердить готовность</button></td></tr>
+                        <tr class="clickable"><td>SU 2150 / 2151</td><td>RA-73110 A320</td><td class="center">128</td><td class="center">—</td>
+                            <td class="center st-not_started">11:40</td><td class="center st-not_started">11:40</td><td class="center st-not_started">11:40</td>
+                            <td class="center st-not_started">11:40</td><td class="center st-not_started">11:40</td><td class="center st-not_started">11:40</td>
+                            <td class="center st-not_required">—</td><td class="center">0 / 11</td><td class="center" style="white-space: normal">Запланирован</td></tr>
+                        <tr class="clickable"><td>SU 1403 / 1404</td><td>RA-89041 B777</td><td class="center">131</td><td class="center">09:20</td>
+                            <td class="center st-done">09:25</td><td class="center st-done">09:46</td><td class="center st-late_critical">+14 (36)</td>
+                            <td class="center st-done">10:04</td><td class="center st-done">10:10</td><td class="center st-not_started">10:20</td>
+                            <td class="center st-not_started">10:50</td><td class="center">8 / 12</td><td class="center" style="white-space: normal">Обслуживание<br><b>риск задержки</b></td></tr>
+                        <tr class="clickable"><td>SU 1001 / 1002</td><td>RA-73725 A320</td><td class="center">124</td><td class="center">10:02</td>
+                            <td class="center st-done">10:05</td><td class="center st-late">10:19 +2</td>
+                            <td class="center st-problem" data-tip="Заправка топливом · Проблема&#10;План: 10:15–10:35&#10;Комментарий: треснул шланг, ждём замену">! Проблема</td>
+                            <td class="center st-late">15 / 10</td><td class="center st-in_progress">13 / 15</td><td class="center st-not_started">10:35</td>
+                            <td class="center st-not_required">—</td><td class="center">6 / 11</td><td class="center" style="white-space: normal">Обслуживание</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="legend">
+                    <span><i class="st-not_started"></i> не начата</span><span><i class="st-in_progress"></i> в работе</span>
+                    <span><i class="st-done"></i> в срок</span><span><i class="st-late"></i> отставание до 10 мин</span>
+                    <span><i class="st-late_critical"></i> отставание больше 10 мин</span><span><i class="st-problem"></i> проблема</span>
+                    <span><i class="st-not_required"></i> не требуется</span>
+                </div>
+            </div>
+        </div>
+
+        <h3>Чек-лист техника на планшете (макет 3)</h3>
+        <div class="sg-screen touch">
+            <header class="app-header">
+                <a class="app-brand" href="#screens">Чек-лист ВС</a>
+                <nav class="app-nav"><a href="#screens">Мои обороты</a><a href="#screens">Профиль</a></nav>
+                <div class="app-user"><span>Иванов П. <span class="muted">техник</span></span><a href="#screens">Выход</a></div>
+            </header>
+            <div class="page">
+                <div class="page-header" style="align-items: flex-start">
+                    <div>
+                        <h1>SU 1001 KGD → SVO / SU 1002 SVO → LED</h1>
+                        <div>RA-73725 · A320 · стоянка 124</div>
+                        <div>Постановка ВС 10:02 · прошло 00:31 · вылет по плану 11:10 · выполнено 6 из 11</div>
+                    </div>
+                    <div class="actions"><button class="btn btn-wide" disabled>Постановка ВС: 10:02</button></div>
+                </div>
+                <table class="table">
+                    <thead><tr><th>№</th><th>Операция</th><th>План</th><th>Факт</th><th>Отметка</th></tr></thead>
+                    <tbody>
+                    <tr><td class="center">1</td><td>Подгон трапа</td><td class="center">10:02–10:05</td><td class="center">10:03–10:05</td><td class="center st-done">Выполнена</td></tr>
+                    <tr><td class="center">3</td><td>Выгрузка багажа</td><td class="center">10:02–10:17</td><td class="center">10:04–10:19</td><td class="center st-late">Выполнена, +2 мин</td></tr>
+                    <tr><td class="center">6</td><td>Заправка топливом</td><td class="center">10:15–10:35</td><td class="center">с 10:16</td><td class="st-problem">! Проблема: треснул шланг, ждём замену</td></tr>
+                    <tr><td class="center">8</td><td>Загрузка бортпитания</td><td class="center">10:15–10:25</td><td class="center">с 10:16</td>
+                        <td class="st-late"><div class="sg-row"><button class="btn">Завершить</button><button class="btn">Проблема</button> (15 / 10 мин)</div></td></tr>
+                    <tr><td class="center">9</td><td>Загрузка багажа</td><td class="center">10:17–10:32</td><td class="center">с 10:20</td>
+                        <td class="st-in_progress"><div class="sg-row"><button class="btn">Завершить</button><button class="btn">Проблема</button> (13 / 15 мин)</div></td></tr>
+                    <tr><td class="center">10</td><td>Посадка пассажиров</td><td class="center">10:35–10:55</td><td></td>
+                        <td class="st-not_started"><div class="sg-row"><button class="btn" disabled>Начать</button> <span class="muted">ждёт: заправка, питание</span></div></td></tr>
+                    <tr><td class="center">11</td><td>Противообледенительная обработка</td><td class="center">—</td><td></td><td class="center st-not_required">Не требуется</td></tr>
+                    </tbody>
+                </table>
+                <div class="sg-row" style="margin-top: var(--sp-4)"><button class="btn btn-wide" disabled>Отправление ВС</button>
+                    <span class="muted">станет доступна после подтверждения готовности супервайзером</span></div>
+            </div>
+        </div>
+
+        <h3>Все экраны</h3>
+        <table class="table sg-table">
+            <thead><tr><th>Макет</th><th>Экран</th><th>Кто работает</th><th>Страница в репозитории</th><th>Команда</th></tr></thead>
+            <tbody>
+            <tr><td class="center">1</td><td>Вход</td><td>все</td><td>страница Keycloak, тема в стиле этой страницы</td><td>Авторизация</td></tr>
+            <tr><td class="center">2</td><td>Профиль</td><td>все</td><td><code>profile.html</code></td><td>Авторизация</td></tr>
+            <tr><td class="center">3</td><td>Мои обороты, чек-лист</td><td>техник</td><td><code>technician/my-turnarounds.html</code>, <code>technician/checklist.html</code></td><td>Бизнес-логика</td></tr>
+            <tr><td class="center">4</td><td>Окно «Проблема»</td><td>техник</td><td>внутри <code>technician/checklist.html</code></td><td>Бизнес-логика</td></tr>
+            <tr><td class="center">5</td><td>Таблица оборотов</td><td>супервайзер</td><td><code>supervisor/turnarounds.html</code></td><td>Бизнес-логика</td></tr>
+            <tr><td class="center">6</td><td>Создание оборота</td><td>супервайзер</td><td><code>supervisor/turnaround-new.html</code></td><td>Бизнес-логика</td></tr>
+            <tr><td class="center">7</td><td>Справочники</td><td>супервайзер</td><td><code>ref/index.html</code></td><td>Справочники</td></tr>
+            <tr><td class="center">8</td><td>Пользователи и заявки</td><td>супервайзер</td><td><code>users/index.html</code></td><td>Авторизация</td></tr>
+            <tr><td class="center">9</td><td>Роли и права</td><td>супервайзер</td><td>вкладка в <code>users/index.html</code></td><td>Авторизация</td></tr>
+            <tr><td class="center">10</td><td>Журнал действий</td><td>супервайзер</td><td><code>log/index.html</code></td><td>Данные</td></tr>
+            <tr><td class="center">11</td><td>История</td><td>супервайзер</td><td><code>history/index.html</code></td><td>Данные</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 8 -->
+    <section id="texts">
+        <h2>8. Тексты и форматы</h2>
+        <div class="sg-compare">
+            <div>
+                <h3>Статусы оборота</h3>
+                <table class="table">
+                    <tbody>
+                    <tr><td>Запланирован</td><td>супервайзер создал оборот</td></tr>
+                    <tr><td>Обслуживание</td><td>техник отметил «Постановка ВС»</td></tr>
+                    <tr><td>Готов к вылету</td><td>супервайзер подтвердил готовность</td></tr>
+                    <tr><td>Закрыт</td><td>техник отметил «Отправление ВС»</td></tr>
+                    <tr><td>Отменён</td><td>супервайзер отменил оборот</td></tr>
+                    <tr><td>риск задержки</td><td>вторая строка в столбце «Статус», если план кончается позже STD</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <h3>Кнопки действий</h3>
+                <table class="table">
+                    <tbody>
+                    <tr><td>техник</td><td>Постановка ВС · Начать · Завершить · Проблема · Отправление ВС</td></tr>
+                    <tr><td>супервайзер</td><td>Создать оборот · Решено · Не требуется · Исправить отметку · Подтвердить готовность · Отменить оборот</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <h3>Форматы</h3>
+        <table class="table sg-table">
+            <thead><tr><th>Что</th><th>Пишем</th><th>Функция</th></tr></thead>
+            <tbody>
+            <tr><td>Время</td><td>10:05</td><td><code>time()</code></td></tr>
+            <tr><td>Интервал</td><td>10:02–10:05 (короткое тире без пробелов)</td><td></td></tr>
+            <tr><td>Дата</td><td>27.10.2026</td><td><code>date()</code></td></tr>
+            <tr><td>Отставание</td><td>+2 мин; в ячейке таблицы 10:19 +2</td><td><code>minutesBetween()</code></td></tr>
+            <tr><td>Операция в работе</td><td>13 / 15 (прошло / норматив, минуты)</td><td></td></tr>
+            <tr><td>Прогресс оборота</td><td>6 / 11 (выполнено / обязательных)</td><td></td></tr>
+            <tr><td>Нет значения</td><td>—</td><td></td></tr>
+            <tr><td>Оборот</td><td>SU 1001 / 1002</td><td></td></tr>
+            <tr><td>Рейс и маршрут</td><td>SU 1001 KGD → SVO</td><td></td></tr>
+            <tr><td>Борт</td><td>RA-73725 · A320 · стоянка 124</td><td></td></tr>
+            <tr><td>Пользователь</td><td>Иванов П. <span class="muted">техник</span></td><td><code>shortName</code> из <code>GET /me</code></td></tr>
+            </tbody>
+        </table>
+        <h3>Сообщения</h3>
+        <p class="sg-lead">Сообщение говорит, что не так и что сделать. Текст приходит с сервера в <code>error.message</code>, страница его не переписывает.</p>
+        <table class="table sg-table">
+            <thead><tr><th>Так</th><th>Не так</th></tr></thead>
+            <tbody>
+            <tr><td class="sg-good">Сначала завершите: Высадка пассажиров</td><td>Ошибка 422</td></tr>
+            <tr><td class="sg-good">Код 151 уже есть</td><td>DUPLICATE_CODE</td></tr>
+            <tr><td class="sg-good">Укажите код задержки: операция закончилась на 14 минут позже плана</td><td>Неверные данные</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 9 -->
+    <section id="code">
+        <h2>9. Подключение на странице</h2>
+<pre>&lt;link rel="stylesheet" href="/css/tokens.css"&gt;
+&lt;link rel="stylesheet" href="/css/ui.css"&gt;
+...
+&lt;body&gt;                      &lt;!-- на страницах техника: &lt;body class="touch"&gt; --&gt;
+&lt;header class="app-header"&gt;&lt;/header&gt;
+&lt;main class="page" id="page"&gt;...&lt;/main&gt;
+&lt;script type="module"&gt;
+    import { startPage, showError, every } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { confirmDialog, showFieldErrors } from '/js/ui.js';
+    import { time, operationClass } from '/js/format.js';
+
+    const me = await startPage({ active: 'turnarounds' });   // вход, шапка, меню по правам
+    every(15, async () =&gt; {
+        try {
+            const list = await api.get('/turnarounds', { date: '2026-10-27' }, { background: true });
+            // ... рисуем строки
+        } catch (e) {
+            showError(document.getElementById('page'), e);
+        }
+    });
+&lt;/script&gt;</pre>
+        <table class="table sg-table">
+            <thead><tr><th>Функция</th><th>Файл</th><th>Что делает</th></tr></thead>
+            <tbody>
+            <tr><td><code>startPage({ active })</code></td><td>layout.js</td><td>вход через Keycloak, шапка с меню по правам, возвращает пользователя из <code>GET /me</code></td></tr>
+            <tr><td><code>can(me, 'ref.write')</code></td><td>layout.js</td><td>есть ли у пользователя право: показывать кнопку или нет</td></tr>
+            <tr><td><code>showError(container, err)</code></td><td>layout.js</td><td>сообщение об ошибке с requestId</td></tr>
+            <tr><td><code>every(15, fn)</code></td><td>layout.js</td><td>автообновление раз в 15 секунд</td></tr>
+            <tr><td><code>api.get / post / patch</code></td><td>api.js</td><td>запрос к <code>/api/v1</code> с токеном; ошибка приходит как <code>ApiError</code></td></tr>
+            <tr><td><code>time, date, operationClass</code></td><td>format.js</td><td>форматы и цвет ячейки операции</td></tr>
+            <tr><td><code>TURNAROUND_STATUS, OPERATION_STATUS</code></td><td>format.js</td><td>подписи статусов по-русски</td></tr>
+            <tr><td><code>escapeHtml(s)</code></td><td>format.js</td><td>экранирует текст перед вставкой в HTML</td></tr>
+            <tr><td><code>localIso(date)</code></td><td>format.js</td><td>дата и время для параметров API: 2026-10-28T10:31:12</td></tr>
+            <tr><td><code>confirmDialog({ title, text, ok, touch })</code></td><td>ui.js</td><td>окно подтверждения, возвращает true или false</td></tr>
+            <tr><td><code>showFieldErrors(form, err)</code></td><td>ui.js</td><td>ошибки проверки под полями формы; false, если поле не нашлось</td></tr>
+            <tr><td><code>refSelect(select, dictionary, opts)</code></td><td>ui.js</td><td>выпадающий список из справочника, только активные записи</td></tr>
+            <tr><td><code>pager(container, { page, size, total, onPage })</code></td><td>ui.js</td><td>листалка страниц под таблицей</td></tr>
+            <tr><td><code>ACTION_TYPES, describeValue, logRows</code></td><td>journal.js</td><td>виды действий журнала и строки таблицы журнала</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 10 -->
+    <section id="changes">
+        <h2>10. Как менять дизайн-систему</h2>
+        <ol class="sg-lead">
+            <li>За дизайн-систему отвечает команда «Данные». Вопросы и предложения задаются ей.</li>
+            <li>Нужного компонента нет: добавьте его в <code>ui.css</code> и на эту страницу отдельным пулреквестом с меткой <code>design</code>.
+                Его смотрят все команды, потому что он появится на их экранах.</li>
+            <li>Новый цвет не добавляем, оранжевый не используем. Если без цвета никак, сначала договариваемся в чате лидеров.</li>
+            <li>Новая страница: добавьте пункт меню в список <code>NAV</code> в <code>/js/layout.js</code> с правом, по которому он виден.</li>
+        </ol>
+        <p class="sg-note">1.0 от 28.10.2026: первая версия. Расположение элементов взято с согласованных макетов интерфейса.<br>1.1 от 28.10.2026: общие части страниц в <code>/js/ui.js</code>, плитки показателей и листалка страниц.</p>
     </section>
 </main>
+</div>
 <script>
-    // цвета берём прямо из tokens.css, чтобы витрина не расходилась со стилями
-    const tokens = [
-        ['--c-text', 'текст'], ['--c-muted', 'второстепенный текст'], ['--c-border', 'рамки'], ['--c-surface', 'шапка, заголовки таблиц'],
-        ['--c-selected', 'выбранный пункт'], ['--st-not-started', 'не начата'], ['--st-in-progress', 'в работе'], ['--st-done', 'выполнена в срок'],
-        ['--st-late', 'отставание до 10 мин'], ['--st-late-critical', 'отставание больше 10 мин'], ['--st-problem', 'проблема'], ['--st-not-required', 'не требуется'],
-    ];
+    // значения цветов берём прямо из tokens.css, чтобы витрина не расходилась со стилями
     const css = getComputedStyle(document.documentElement);
-    document.getElementById('swatches').innerHTML = tokens.map(([v, t]) => {
-        const c = css.getPropertyValue(v).trim();
-        return `<div class="sg-swatch"><div style="background:${c}"></div><p><b>${t}</b><br><span class="mono">${v}</span><br>${c}</p></div>`;
-    }).join('');
-    // демо планшетного режима внутри обычной страницы
-    const demo = document.getElementById('touchDemo');
-    ['--fs-base', '--control-h'].forEach((v, i) => demo.style.setProperty(v, ['16px', '48px'][i]));
-    demo.style.fontSize = '16px';
+    document.querySelectorAll('[data-token]').forEach((el) => {
+        el.textContent = css.getPropertyValue(el.dataset.token).trim();
+    });
+    document.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => document.getElementById(b.dataset.open).showModal()));
+    document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
 </script>
 </body>
 </html>
