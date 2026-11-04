@@ -62,6 +62,7 @@
 
 - Представления оборотов для журнала и показателей. Представление для `GET /metrics` пишут «Данные», вы проверяете его как владельцы схемы `ops`.
 - Фильтры `GET /turnarounds` для экрана «История» («Данные»): `status=closed,cancelled`, `dateFrom`, `dateTo`, `aircraftTypeId`, `aircraftId`, `flightNumber`, `page`, `size` (спецификация 7.3). Экран уже ждёт их и до этого показывает пометку.
+- Проверить миграцию `V202611051010` с уникальностью оборота (её написали «Данные» по замечанию преподавателя). Нарушение индексов `turnaround_arr_flight_uq` и `turnaround_dep_flight_uq` в `POST /turnarounds` превращается в 409 `FLIGHT_ALREADY_USED`, нарушение `turnaround_aircraft_busy_uq` и `turnaround_stand_busy_uq` при постановке ВС в 409 `AIRCRAFT_BUSY` (спецификация 7.4).
 - Проверить представления `ops.v_object_title`, `ops.v_turnaround_result`, `ops.v_operation_result` из миграции `V202610281200`: их написали «Данные» для журнала и показателей.
 - Если меняете смысл полей `ops.turnaround` или `ops.operation_exec`, предупредите «Данных»: на этих полях считаются показатели.
 
