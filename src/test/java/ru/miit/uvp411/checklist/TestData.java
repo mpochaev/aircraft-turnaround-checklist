@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 public class TestData {
 
     private static final AtomicInteger FLIGHT_NO = new AtomicInteger(5000);
+    private static final AtomicInteger COUNTER = new AtomicInteger(1);
 
     private final JdbcClient jdbc;
 
@@ -48,27 +49,53 @@ public class TestData {
     }
 
     /**
-     * Оборот борта tail на стоянке 124 с техником tech07: рейс прилёта KGD–SVO с STA = sta,
-     * рейс вылета SVO–LED с STD = std.
+     * Оборот с техником tech07: рейс прилёта KGD–SVO с STA = sta, рейс вылета SVO–LED с STD = std.
+     * Каждый оборот получает свой тестовый борт того же типа, что tail, и свою стоянку: так обороты
+     * разных тестов не нарушают правило «борт и стоянка заняты только одним оборотом в работе».
      */
     public long turnaround(String tail, String status, LocalDateTime sta, LocalDateTime std,
                            LocalDateTime onBlock, LocalDateTime ready, LocalDateTime offBlock) {
         long arr = flight("KGD", "SVO", sta.minusMinutes(120), sta);
         long dep = flight("SVO", "LED", std, std.plusMinutes(85));
+        return turnaround(aircraft(tail), stand(), status, arr, dep, onBlock, ready, offBlock);
+    }
+
+    /** Оборот на заданном борте, стоянке и рейсах: для проверок уникальности. */
+    public long turnaround(int aircraftId, int standId, String status, long arrFlightId, long depFlightId,
+                           LocalDateTime onBlock, LocalDateTime ready, LocalDateTime offBlock) {
         return jdbc.sql("""
                         insert into ops.turnaround (aircraft_id, stand_id, arr_flight_id, dep_flight_id, technician_id,
                                                     status, on_block_at, ready_at, off_block_at, cancel_reason)
-                        values ((select id from ref.aircraft where tail_number = :tail),
-                                (select s.id from ref.stand s join ref.airport a on a.id = s.airport_id
-                                  where a.iata_code = 'SVO' and s.code = '124'),
-                                :arr, :dep, (select id from auth.app_user where login = 'tech07'),
+                        values (:aircraft, :stand, :arr, :dep, (select id from auth.app_user where login = 'tech07'),
                                 :status, :onBlock, :ready, :offBlock,
                                 case when :status = 'cancelled' then 'Отмена рейса' end)
                         returning id
                         """)
-                .param("tail", tail).param("arr", arr).param("dep", dep).param("status", status)
-                .param("onBlock", onBlock).param("ready", ready).param("offBlock", offBlock)
+                .param("aircraft", aircraftId).param("stand", standId).param("arr", arrFlightId).param("dep", depFlightId)
+                .param("status", status).param("onBlock", onBlock).param("ready", ready).param("offBlock", offBlock)
                 .query(Long.class).single();
+    }
+
+    /** Новый тестовый борт того же типа ВС, что борт tail из V1. */
+    public int aircraft(String tail) {
+        return jdbc.sql("""
+                        insert into ref.aircraft (tail_number, aircraft_type_id, airline_id)
+                        select :newTail, aircraft_type_id, airline_id from ref.aircraft where tail_number = :tail
+                        returning id
+                        """)
+                .param("newTail", "RA-T" + COUNTER.getAndIncrement()).param("tail", tail)
+                .query(Integer.class).single();
+    }
+
+    /** Новая тестовая стоянка в SVO. */
+    public int stand() {
+        return jdbc.sql("""
+                        insert into ref.stand (airport_id, code)
+                        select id, :code from ref.airport where iata_code = 'SVO'
+                        returning id
+                        """)
+                .param("code", "T" + COUNTER.getAndIncrement())
+                .query(Integer.class).single();
     }
 
     /** Закрытый оборот: постановка onBlock, отправление offBlock. */
@@ -113,7 +140,8 @@ public class TestData {
                 .update();
     }
 
-    private long flight(String from, String to, LocalDateTime std, LocalDateTime sta) {
+    /** Рейс авиакомпании SU с новым номером. */
+    public long flight(String from, String to, LocalDateTime std, LocalDateTime sta) {
         return jdbc.sql("""
                         insert into ops.flight (airline_id, flight_number, flight_date, dep_airport_id, arr_airport_id, std, sta)
                         values ((select id from ref.airline where iata_code = 'SU'), :num, :date,
