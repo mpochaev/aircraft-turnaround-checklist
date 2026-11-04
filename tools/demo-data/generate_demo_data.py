@@ -609,6 +609,9 @@ def main():
     for chunk in values(dep_rows, 1000):
         w("INSERT INTO ops.exec_dependency (exec_id, prev_exec_id) VALUES")
         w(chunk + ";\n")
+    # журнал разбит на секции по месяцам: создаём секции месяцев, за которые пишем записи
+    for month in sorted({r[0].strftime("%Y-%m-01") for r in log_rows}):
+        w(f"SELECT log.create_month_partition('{month}');")
     for chunk in values(log_rows):
         w("INSERT INTO log.action_log (action_time, user_id, login, action_type, entity, entity_id, turnaround_id, old_value, new_value)")
         w("SELECT v.t::timestamp, u.id, v.login, v.typ, v.entity, v.eid, v.tid, v.old, v.new FROM (VALUES")
