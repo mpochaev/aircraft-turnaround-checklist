@@ -44,7 +44,12 @@ public class RefService implements RefApi {
     public List<Map<String, Object>> activeNorms(String aircraftTypeCode) {
         return Rows.clean(jdbc.sql("""
                         select n.id, o.code as "operationCode", n.seq_no as "seqNo",
-                               n.duration_min as "durationMin", n.is_mandatory as "isMandatory"
+                               n.duration_min as "durationMin", n.is_mandatory as "isMandatory",
+                               (select string_agg(po.code, ',' order by pn.seq_no)
+                                  from ref.norm_dependency d
+                                  join ref.operation_norm pn on pn.id = d.prev_norm_id
+                                  join ref.operation po on po.id = pn.operation_id
+                                 where d.norm_id = n.id) as "after"
                         from ref.operation_norm n
                         join ref.aircraft_type t on t.id = n.aircraft_type_id
                         join ref.operation o on o.id = n.operation_id

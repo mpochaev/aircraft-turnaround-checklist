@@ -25,6 +25,8 @@
 
 ## Что уже есть
 
+- `GET /flights` и `POST /flights`: фильтры по дате, маршруту, авиакомпании и занятости; повтор ключа даёт 409 `FLIGHT_EXISTS`, создание пишет `flight_created`.
+- `PlanCalculator`: рассчитывает параллельный план по зависимостям нормативов и допускает исключение необязательных операций.
 - `GET /api/v1/turnarounds?date=`: техник видит только свои обороты, супервайзер все.
 - `GET /api/v1/turnarounds/{id}`: оборот с чек-листом, для каждой операции план, факт, статус и предшественники.
 - Представление `ops.v_turnaround_progress`: прогресс и риск задержки.
@@ -35,13 +37,40 @@
 
 | Метод | Что с ним | Спецификация | Сценарии ПМИ |
 |---|---|---|---|
-| `GET /flights` | поиск рейсов для экрана создания | 7.1 | 21 |
-| `POST /flights` | 409 `FLIGHT_EXISTS` при повторе ключа рейса | 7.2 | 21, 22 |
+| `GET /flights` | готово: date, airlineId, number, arrAirportId, depAirportId, free | 7.1 | 21 |
+| `POST /flights` | готово: уникальность по шести полям ключа и журнал `flight_created` | 7.2 | 21, 22 |
 | `GET /turnarounds` | готово, добавить фильтры: стоянки, авиакомпания, только с проблемами, статус | 7.3 | 43, 44 |
 | `POST /turnarounds` | нормативы через `RefApi.activeNorms`, активность через `RefApi.isActive`, план по зависимостям | 7.4 | 23–26 |
 | `GET /turnarounds/{id}` | готово, добавить `allowedActions` | 7.5 | |
 | `PATCH /turnarounds/{id}` | переходы по диаграмме состояний оборота (ЧТЗ, рисунок А.2) | 7.6 | 27, 35–38 |
 | `PATCH /operations/{id}` | переходы по рисунку А.3 ЧТЗ; ошибки `PREDECESSORS_NOT_DONE`, `DELAY_CODE_REQUIRED`, `MANDATORY_OPERATION`, `COMMENT_REQUIRED` | 7.7 | 28–33, 39–42 |
+
+### Контракт рейса и поиска
+
+`GET /flights` возвращает массив с полями:
+
+| Поле | Смысл |
+|---|---|
+| `id` | Идентификатор рейса |
+| `airline { id, iataCode }` | Авиакомпания |
+| `flightNumber`, `letter` | Номер рейса и литера (пустая строка, если нет) |
+| `flightDate` | Дата расписания |
+| `depAirport`, `arrAirport` | IATA-коды аэропортов вылета и прилёта |
+| `std`, `sta`, `atd`, `ata` | Плановые и фактические местные времена |
+
+Фильтры:
+
+| Параметр | Обязательный | Поведение |
+|---|---|---|
+| `date` | да | Дата рейса |
+| `airlineId`, `number` | нет | Авиакомпания и номер |
+| `arrAirportId`, `depAirportId` | нет | Аэропорт прилёта или вылета |
+| `free` | нет | По умолчанию `true`: исключает рейсы, занятые неотменённым оборотом |
+
+`POST /flights` принимает `airlineId`, `flightNumber`, `letter` (необязательно, по умолчанию пусто),
+`flightDate`, `depAirportId`, `arrAirportId`, `std`, `sta`. Шесть полей ключа:
+авиакомпания, номер, литера, дата и два аэропорта. Запись `flight_created` содержит `entity=flight`,
+`entityId` нового рейса и переданные значения в `newValue`.
 
 Экраны: сценарии 34 (риск задержки), 45 (подсказка), 46 (автообновление раз в 15 секунд). Плановое время проверяйте на контрольных примерах ПМИ (таблица 6).
 
@@ -71,6 +100,7 @@
 - От «Справочников» `RefApi`: нормативы типа ВС и проверка, что запись справочника активна.
 - От «Авторизации» `AuthApi.findUser` и `GET /users?role=technician` для выбора техника.
 - От «Данных» `AuditLog.record(...)` с кодами `flight_created`, `turnaround_created`, `turnaround_cancelled`, `technician_changed`, `on_block`, `ready`, `off_block`, `op_start`, `op_finish`, `op_problem`, `op_resolve`, `op_not_required`, `op_revert`, `delay_code`.
+- Артёму для создания чек-листа: `PlanCalculator.calculate(LocalDateTime startAt, List<PlanCalculator.Norm> norms, Set<String> notRequiredOperations)`. `Norm` содержит `id`, `operationCode`, `seqNo`, `durationMin`, `mandatory`, `after`; результат содержит те же поля снимка и `plannedStart`/`plannedEnd`.
 - От «Данных» дизайн-систему и общие части страниц: окно подтверждения, вывод ошибок полей, выбор из справочника. Цвет ячейки операции считает `operationClass()` из `static/js/format.js`.
 
 ## Как проверять без других команд
