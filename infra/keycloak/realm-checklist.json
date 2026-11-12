@@ -20,6 +20,10 @@
   "ssoSessionIdleTimeout": 2700,
   "ssoSessionMaxLifespan": 43200,
   "accessTokenLifespan": 300,
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "enabledEventTypes": ["LOGIN", "LOGIN_ERROR", "LOGOUT"],
+  "eventsListeners": ["jboss-logging"],
   "roles": {
     "realm": [
       { "name": "technician", "description": "Техник" },
@@ -48,9 +52,24 @@
       "publicClient": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true
+    },
+    {
+      "clientId": "checklist-log",
+      "name": "Сервер: события входа для журнала действий",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "checklist-log-dev-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
     }
   ],
   "users": [
+    {
+      "username": "service-account-checklist-log", "enabled": true, "serviceAccountClientId": "checklist-log",
+      "clientRoles": { "realm-management": ["view-events", "view-users"] }
+    },
     {
       "username": "sup01", "firstName": "Анна", "lastName": "Петрова", "email": "sup01@checklist.local",
       "enabled": true, "emailVerified": true, "realmRoles": ["supervisor"],

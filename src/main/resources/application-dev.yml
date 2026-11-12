@@ -3,3 +3,6 @@
 app:
   security:
     mode: dev
+  keycloak-events:
+    # без Keycloak событий входа нет; включить: KEYCLOAK_EVENTS=true при запущенном Keycloak
+    enabled: ${KEYCLOAK_EVENTS:false}

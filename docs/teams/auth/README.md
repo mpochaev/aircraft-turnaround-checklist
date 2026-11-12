@@ -65,7 +65,7 @@
 ## Что берёте у других
 
 - От «Данных» `AuditLog.record(...)`. Каждое изменение пишется в журнал с кодами `user_created`, `user_changed`, `role_created`, `role_changed`, `request_created`, `request_reviewed`.
-- Решить с «Данными», как события входа из Keycloak попадут в журнал: `login`, `login_failed`, `logout`, `account_locked` (ФТ-40).
+- События входа из Keycloak в журнал (`login`, `login_failed`, `logout`, `account_locked`, ФТ-40) уже сделали «Данные»: в realm включены события и служебный клиент `checklist-log`, сервер забирает события раз в 30 секунд (`log/internal/KeycloakEventImporter`). При правке `realm-checklist.json` не удаляйте их.
 - Дизайн-систему от «Данных».
 - Блок «Мои действия за смену» в `profile.html` уже сделали «Данные». При переделке профиля оставьте его, он строится функцией `logRows()` из `/js/journal.js`.
 - `GET /users?size=100` нужен «Данным» для фильтра «Пользователь» в журнале: поля `id`, `login`, `shortName`.

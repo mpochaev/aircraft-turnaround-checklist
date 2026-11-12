@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -35,9 +36,11 @@ public class LogQueries {
             "operation_norm", "Нормативы операций", "delay_code", "Коды задержек");
 
     private final JdbcClient jdbc;
+    private final LogTexts texts;
 
-    LogQueries(JdbcClient jdbc) {
+    LogQueries(JdbcClient jdbc, LogTexts texts) {
         this.jdbc = jdbc;
+        this.texts = texts;
     }
 
     /**
@@ -75,7 +78,9 @@ public class LogQueries {
                 .param("size", paging.size())
                 .param("offset", paging.offset())
                 .query().listOfRows());
-        return new Page(rows.stream().map(LogQueries::item).toList(), total);
+        LogTexts.Names names = texts.names(rows.stream()
+                .flatMap(r -> Stream.of(r.get("old_value"), r.get("new_value"))).toList());
+        return new Page(rows.stream().map(r -> item(r, names)).toList(), total);
     }
 
     private static JdbcClient.StatementSpec bind(JdbcClient.StatementSpec spec, Filter f) {
@@ -88,7 +93,7 @@ public class LogQueries {
     }
 
     /** Строка базы в элемент ответа по таблицам 8.2 и 8.3 спецификации. */
-    private static Map<String, Object> item(Map<String, Object> r) {
+    private static Map<String, Object> item(Map<String, Object> r, LogTexts.Names names) {
         Map<String, Object> user = null;
         if (r.get("user_id") != null) {
             user = new LinkedHashMap<>();
@@ -109,6 +114,9 @@ public class LogQueries {
         out.put("turnaroundId", r.get("turnaround_id"));
         out.put("oldValue", r.get("old_value"));
         out.put("newValue", r.get("new_value"));
+        // те же значения понятным текстом: названия вместо id (на экране журнала и в профиле)
+        out.put("oldText", LogTexts.describe(r.get("old_value"), names));
+        out.put("newText", LogTexts.describe(r.get("new_value"), names));
         return out;
     }
 

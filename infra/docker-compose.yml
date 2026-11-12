@@ -33,6 +33,10 @@ services:
     ports:
       - "${KC_PORT:-8180}:8080"
     volumes:
+      # данные Keycloak (пользователи, роли, сессии) живут в томе и не пропадают при перезапуске контейнера.
+      # realm из файла загружается только в пустой том; чтобы загрузить его заново после правки файла:
+      #   docker compose -f infra/docker-compose.yml rm -sf keycloak && docker volume rm checklist_kcdata
+      - kcdata:/opt/keycloak/data
       - ./keycloak/realm-checklist.json:/opt/keycloak/data/import/realm-checklist.json:ro
 
   adminer:
@@ -77,6 +81,7 @@ services:
       KEYCLOAK_ISSUER: http://localhost:${KC_PORT:-8180}/realms/checklist
       KEYCLOAK_JWKS: http://keycloak:8080/realms/checklist/protocol/openid-connect/certs
       KEYCLOAK_PUBLIC_URL: http://localhost:${KC_PORT:-8180}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       TZ: Europe/Moscow
     ports:
       - "${APP_PORT:-8080}:8080"
@@ -86,3 +91,4 @@ services:
 
 volumes:
   pgdata:
+  kcdata:
