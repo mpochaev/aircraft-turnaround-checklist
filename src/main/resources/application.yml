@@ -30,6 +30,14 @@ app:
     dev:
       user: sup01
       roles: [supervisor]
+  # События входа из Keycloak в журнал (ФТ-40): вход, неудачный вход, блокировка, выход.
+  # Сервер раз в 30 секунд забирает их служебным клиентом checklist-log. В профиле dev выключено.
+  keycloak-events:
+    enabled: ${KEYCLOAK_EVENTS:true}
+    url: ${KEYCLOAK_INTERNAL_URL:http://localhost:8180}
+    realm: checklist
+    client-id: checklist-log
+    client-secret: ${KEYCLOAK_LOG_SECRET:checklist-log-dev-secret}
 
 springdoc:
   swagger-ui:

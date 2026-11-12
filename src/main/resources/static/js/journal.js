@@ -38,6 +38,7 @@ const TEXT = ['comment', 'cancelReason', 'reason'];
 const HIDDEN = ['actualStart', 'actualEnd', 'onBlockAt', 'readyAt', 'offBlockAt'];
 const NAMES = { aircraft: 'борт', stand: 'стоянка', technician: 'техник', flight: 'рейс', delayCode: 'код задержки' };
 
+// Запасной вариант на случай, если сервер не прислал oldText и newText: сервер сам подставляет названия вместо id.
 // {"status": "problem", "comment": "Треснул шланг"} → «проблема: Треснул шланг»; {"delayCode": "36"} → «36».
 export function describeValue(v) {
     if (v === null || v === undefined) {
@@ -82,7 +83,7 @@ export function logRows(items, { user = true, withDate = false } = {}) {
             ${user ? `<td class="nowrap">${escapeHtml(r.user?.shortName ?? '—')}</td>` : ''}
             <td>${escapeHtml(r.actionName)}</td>
             <td>${escapeHtml(r.objectTitle ?? '—')}</td>
-            <td>${escapeHtml(describeValue(r.oldValue))}</td>
-            <td>${escapeHtml(describeValue(r.newValue))}</td>
+            <td>${escapeHtml(r.oldText ?? describeValue(r.oldValue))}</td>
+            <td>${escapeHtml(r.newText ?? describeValue(r.newValue))}</td>
         </tr>`).join('');
 }
