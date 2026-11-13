@@ -9,7 +9,7 @@
     <style>
         .cl-head { display: flex; gap: var(--sp-4); align-items: flex-start; margin-bottom: var(--sp-4); }
         .cl-head .btn { margin-left: auto; }
-        .cl-mark { display: flex; gap: var(--sp-2); align-items: center; }
+        .cl-mark { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
         .cl-foot { display: flex; gap: var(--sp-4); align-items: center; margin-top: var(--sp-4); }
     </style>
 </head>
@@ -22,74 +22,154 @@
             <div id="sub" class="muted"></div>
             <div id="summary"></div>
         </div>
-        <button class="btn btn-wide" id="onBlock" disabled title="Делает команда «Бизнес-логика»: PATCH /turnarounds/{id}">Постановка ВС</button>
+        <button type="button" class="btn btn-wide" id="onBlock" data-action="on_block" disabled
+                title="Доступно, когда сервер вернёт действие в allowedActions">Постановка ВС</button>
     </div>
     <table class="table">
         <thead><tr><th>№</th><th>Операция</th><th>План</th><th>Факт</th><th>Отметка</th></tr></thead>
         <tbody id="rows"></tbody>
     </table>
     <div class="cl-foot">
-        <button class="btn btn-wide" disabled title="Делает команда «Бизнес-логика»">Отправление ВС</button>
-        <span class="muted">станет доступна после подтверждения готовности супервайзером</span>
+        <button type="button" class="btn btn-wide" id="offBlock" data-action="off_block" disabled
+                title="Доступно после подтверждения готовности супервайзером">Отправление ВС</button>
+        <span class="muted" id="offHint">станет доступна после подтверждения готовности супервайзером</span>
     </div>
-    <p class="wip">Кнопки отметок пока неактивны. Их подключает команда «Бизнес-логика»: PATCH /operations/{id},
-        PATCH /turnarounds/{id}, окно «Проблема» (спецификация 7.6, 7.7, 10.3, 10.4).</p>
 </main>
 <script type="module">
     import { startPage, showError, every } from '/js/layout.js';
     import { api } from '/js/api.js';
-    import { time, TURNAROUND_STATUS, OPERATION_STATUS, operationClass, minutesBetween, escapeHtml } from '/js/format.js';
+    import { time, TURNAROUND_STATUS, operationClass, minutesBetween, localIso, escapeHtml } from '/js/format.js';
+    import {
+        renderActionButtons, runOperationAction, runTurnaroundAction, bindActionClicks, OPERATION_ACTIONS,
+    } from '/js/actions.js';
 
-    const me = await startPage({ active: 'my' });
+    await startPage({ active: 'my' });
     const id = new URLSearchParams(location.search).get('id');
-    const NO_ACTION = 'title="Делает команда «Бизнес-логика»: PATCH /operations/{id}" disabled';
+    const page = document.getElementById('page');
+    let turnaround = null;
 
-    function nowIso() {
-        const d = new Date();
-        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+    function confirmContext() {
+        if (!turnaround) return '';
+        return `${turnaround.airline} ${turnaround.arrNumber} / ${turnaround.depNumber} · ${turnaround.aircraft} · стоянка ${turnaround.stand}`;
     }
 
-    function mark(op, byCode) {
+    function predecessorNames(op, byCode, byId) {
+        if (Array.isArray(op.waitsFor) && op.waitsFor.length) {
+            return op.waitsFor.map((ref) => {
+                const prev = typeof ref === 'number' || /^\d+$/.test(ref)
+                    ? byId[ref]
+                    : byCode[ref];
+                return (prev?.name || String(ref)).toLowerCase();
+            });
+        }
+        return (op.after || '').split(',').filter(Boolean)
+            .filter((c) => !['done', 'not_required'].includes(byCode[c]?.status))
+            .map((c) => (byCode[c]?.name || c).toLowerCase());
+    }
+
+    function mark(op, byCode, byId) {
         if (op.status === 'not_required') return 'Не требуется';
-        if (op.status === 'problem') return `! Проблема: ${escapeHtml(op.comment)}`;
+        if (op.status === 'problem') {
+            const actions = renderActionButtons(op.allowedActions || [], { primary: 'resolve' });
+            return `<span class="cl-mark">! Проблема: ${escapeHtml(op.comment || '')}${actions ? ' ' + actions : ''}</span>`;
+        }
         if (op.status === 'done') {
             const lag = minutesBetween(op.plannedEnd, op.actualEnd);
-            return `Выполнена${lag > 0 ? `, +${lag} мин` : ''}${op.delayCode ? `, код ${escapeHtml(op.delayCode)}` : ''}`;
+            const actions = renderActionButtons(op.allowedActions || []);
+            return `<span class="cl-mark">Выполнена${lag > 0 ? `, +${lag} мин` : ''}${op.delayCode ? `, код ${escapeHtml(op.delayCode)}` : ''}${actions ? ' ' + actions : ''}</span>`;
         }
+
+        const waits = predecessorNames(op, byCode, byId);
+        const waitHtml = waits.length
+            ? `<span class="muted">ждёт: ${escapeHtml(waits.join(', '))}</span>`
+            : '';
+
         if (op.status === 'in_progress') {
-            const passed = minutesBetween(op.actualStart, nowIso());
-            return `<span class="cl-mark"><button class="btn" ${NO_ACTION}>Завершить</button>
-                    <button class="btn" ${NO_ACTION}>Проблема</button> (${passed} / ${op.durationMin} мин)</span>`;
+            const passed = op.elapsedMin != null ? op.elapsedMin : minutesBetween(op.actualStart, localIso());
+            const actions = (op.allowedActions && op.allowedActions.length)
+                ? renderActionButtons(op.allowedActions, { primary: 'finish' })
+                : `<button type="button" class="btn" disabled title="Кнопка станет активной, когда сервер вернёт allowedActions">Завершить</button>
+                    <button type="button" class="btn" disabled title="Кнопка станет активной, когда сервер вернёт allowedActions">Проблема</button>`;
+            return `<span class="cl-mark" data-op-id="${op.id}">${actions} (${passed} / ${op.durationMin} мин)${waitHtml ? ' ' + waitHtml : ''}</span>`;
         }
-        const waits = (op.after || '').split(',').filter(Boolean)
-            .filter((c) => !['done', 'not_required'].includes(byCode[c]?.status))
-            .map((c) => byCode[c]?.name.toLowerCase());
-        return `<span class="cl-mark"><button class="btn" ${NO_ACTION}>Начать</button>
-                ${waits.length ? `<span class="muted">ждёт: ${escapeHtml(waits.join(', '))}</span>` : ''}</span>`;
+
+        const actions = (op.allowedActions && op.allowedActions.length)
+            ? renderActionButtons(op.allowedActions, { primary: 'start' })
+            : '<button type="button" class="btn" disabled title="Кнопка станет активной, когда сервер вернёт allowedActions">Начать</button>';
+        return `<span class="cl-mark" data-op-id="${op.id}">${actions}${waitHtml ? ' ' + waitHtml : ''}</span>`;
+    }
+
+    function syncTurnaroundButtons(t) {
+        const allowed = new Set(t.allowedActions || []);
+        const onBlock = document.getElementById('onBlock');
+        const offBlock = document.getElementById('offBlock');
+        const canOn = allowed.has('on_block') || allowed.has('in_service');
+        const canOff = allowed.has('off_block') || allowed.has('closed');
+        onBlock.disabled = !canOn;
+        offBlock.disabled = !canOff;
+        onBlock.title = canOn ? '' : 'Станет доступна, когда сервер вернёт действие в allowedActions';
+        offBlock.title = canOff ? '' : 'Станет доступна после подтверждения готовности супервайзером';
+        document.getElementById('offHint').style.display = canOff ? 'none' : '';
     }
 
     async function load(background) {
         try {
             const t = await api.get(`/turnarounds/${id}`, {}, { background });
+            turnaround = t;
             document.getElementById('title').textContent =
                 `${t.airline} ${t.arrNumber} ${t.arrFrom} → SVO / ${t.airline} ${t.depNumber} SVO → ${t.depTo}`;
             document.getElementById('sub').textContent = `${t.aircraft} · ${t.aircraftType} · стоянка ${t.stand} · техник ${t.technician}`;
             document.getElementById('summary').textContent =
                 `${TURNAROUND_STATUS[t.status]} · постановка ${time(t.onBlockAt) || '—'} · вылет по плану ${time(t.std)} · выполнено ${t.mandatoryDone} из ${t.mandatoryTotal}`;
+            syncTurnaroundButtons(t);
+
             const byCode = Object.fromEntries(t.operations.map((o) => [o.operationCode, o]));
-            const now = nowIso();
+            const byId = Object.fromEntries(t.operations.map((o) => [o.id, o]));
+            const now = localIso();
             document.getElementById('rows').innerHTML = t.operations.map((op) => `
-                <tr>
+                <tr data-op-id="${op.id}">
                     <td class="center">${op.seqNo}</td>
-                    <td>${escapeHtml(op.name)}</td>
+                    <td>${escapeHtml(op.name)}${op.isMandatory === false ? ' <span class="muted">(необяз.)</span>' : ''}</td>
                     <td class="center nowrap">${op.status === 'not_required' ? '—' : `${time(op.plannedStart)}–${time(op.plannedEnd)}`}</td>
                     <td class="center nowrap">${op.actualStart ? time(op.actualStart) + (op.actualEnd ? '–' + time(op.actualEnd) : '') : ''}</td>
-                    <td class="${operationClass(op, now)}">${mark(op, byCode)}</td>
+                    <td class="${operationClass(op, now)}">${mark(op, byCode, byId)}</td>
                 </tr>`).join('');
         } catch (e) {
-            showError(document.getElementById('page'), e);
+            showError(page, e);
         }
     }
+
+    bindActionClicks(page, async (action, btn) => {
+        const opRow = btn.closest('[data-op-id]');
+        btn.disabled = true;
+        try {
+            if (opRow && OPERATION_ACTIONS[action]) {
+                const opId = Number(opRow.dataset.opId);
+                const op = turnaround?.operations?.find((o) => o.id === opId) || {};
+                await runOperationAction({
+                    operationId: opId,
+                    action,
+                    operation: op,
+                    confirmText: op.name || confirmContext(),
+                    touch: true,
+                    errorContainer: page,
+                    onDone: () => load(false),
+                });
+            } else {
+                await runTurnaroundAction({
+                    turnaroundId: Number(id),
+                    action,
+                    confirmText: confirmContext(),
+                    touch: true,
+                    errorContainer: page,
+                    onDone: () => load(false),
+                });
+            }
+        } catch {
+        } finally {
+            btn.disabled = false;
+        }
+    });
 
     let first = true;
     every(15, () => { load(!first); first = false; });
