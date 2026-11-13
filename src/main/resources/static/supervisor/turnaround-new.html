@@ -9,18 +9,325 @@
 </head>
 <body>
 <header class="app-header"></header>
-<main class="page">
-    <div class="page-header"><h1>Создание оборота</h1></div>
-    <div class="wip">
-        <p><b>Страница в разработке. Команда «Бизнес-логика».</b></p>
-        <p>Что должно быть на экране: выбор или ввод рейса прилёта и вылета, борт, стоянка, техник; проверки маршрута, времени и активности записей (ФТ-23–ФТ-27).</p>
-        <p>Методы API: GET /flights, POST /flights, GET /ref/aircraft, GET /ref/stands, GET /users?role=technician, POST /turnarounds (спецификация 7.1, 7.2, 7.4).</p>
-        <p>Макет: документ «Макеты интерфейса», рисунок 6. Компоненты и правила оформления: <a href="/styleguide.html">/styleguide.html</a>.</p>
+<main class="page" id="page">
+    <div class="page-header">
+        <h1>Создание оборота</h1>
+        <div class="actions"><a class="btn" href="/supervisor/turnarounds.html">К оборотам</a></div>
     </div>
+
+    <form class="panel" id="turnaroundForm">
+        <h2>Рейсы</h2>
+        <div class="tiles">
+            <section>
+                <h3>Рейс прилёта</h3>
+                <div class="toolbar">
+                    <label>Дата <input class="input" type="date" name="arrDate" required></label>
+                    <label>Номер <input class="input" name="arrNumber" inputmode="numeric" pattern="[0-9]{1,4}" maxlength="4"></label>
+                    <button class="btn" type="button" data-search-flight="arrival" disabled>Найти</button>
+                </div>
+                <label class="field">
+                    <span>Рейс прилёта</span>
+                    <select class="select" name="arrFlightId" required>
+                        <option value="">Сначала выполните поиск</option>
+                    </select>
+                </label>
+            </section>
+            <section>
+                <h3>Рейс вылета</h3>
+                <div class="toolbar">
+                    <label>Дата <input class="input" type="date" name="depDate" required></label>
+                    <label>Номер <input class="input" name="depNumber" inputmode="numeric" pattern="[0-9]{1,4}" maxlength="4"></label>
+                    <button class="btn" type="button" data-search-flight="departure" disabled>Найти</button>
+                </div>
+                <label class="field">
+                    <span>Рейс вылета</span>
+                    <select class="select" name="depFlightId" required>
+                        <option value="">Сначала выполните поиск</option>
+                    </select>
+                </label>
+            </section>
+        </div>
+
+        <h2>Обслуживание</h2>
+        <div class="tiles">
+            <label class="field">
+                <span>Воздушное судно</span>
+                <select class="select" name="aircraftId" required><option value="">Загрузка…</option></select>
+            </label>
+            <label class="field">
+                <span>Стоянка</span>
+                <select class="select" name="standId" required><option value="">Загрузка…</option></select>
+            </label>
+            <label class="field">
+                <span>Ответственный техник</span>
+                <select class="select" name="technicianId" required><option value="">Загрузка…</option></select>
+            </label>
+        </div>
+        <div class="actions">
+            <button class="btn btn-primary" type="submit">Создать оборот</button>
+        </div>
+    </form>
+    <section class="panel">
+        <h2>Нет нужного рейса?</h2>
+        <p class="muted">Добавьте его вручную. Созданный рейс сразу появится в списке выбора.</p>
+        <div class="tiles">
+            <details>
+                <summary>Добавить рейс прилёта</summary>
+                <form id="arrivalFlightForm">
+                    <div class="tiles">
+                        <label class="field"><span>Авиакомпания</span><select class="select" name="airlineId" required></select></label>
+                        <label class="field"><span>Номер рейса</span><input class="input" name="flightNumber" inputmode="numeric" pattern="[0-9]{1,4}" maxlength="4" required></label>
+                        <label class="field"><span>Литера</span><input class="input" name="letter" pattern="[A-Z]?" maxlength="1" placeholder="необязательно"></label>
+                        <label class="field"><span>Дата</span><input class="input" type="date" name="flightDate" required></label>
+                        <label class="field"><span>Аэропорт вылета</span><select class="select" name="depAirportId" required></select></label>
+                        <label class="field"><span>Аэропорт прилёта (базовый)</span><select class="select" name="arrAirportId" required></select></label>
+                        <label class="field"><span>STD</span><input class="input" type="datetime-local" name="std" required></label>
+                        <label class="field"><span>STA</span><input class="input" type="datetime-local" name="sta" required></label>
+                    </div>
+                    <button class="btn" type="submit">Сохранить рейс прилёта</button>
+                </form>
+            </details>
+            <details>
+                <summary>Добавить рейс вылета</summary>
+                <form id="departureFlightForm">
+                    <div class="tiles">
+                        <label class="field"><span>Авиакомпания</span><select class="select" name="airlineId" required></select></label>
+                        <label class="field"><span>Номер рейса</span><input class="input" name="flightNumber" inputmode="numeric" pattern="[0-9]{1,4}" maxlength="4" required></label>
+                        <label class="field"><span>Литера</span><input class="input" name="letter" pattern="[A-Z]?" maxlength="1" placeholder="необязательно"></label>
+                        <label class="field"><span>Дата</span><input class="input" type="date" name="flightDate" required></label>
+                        <label class="field"><span>Аэропорт вылета (базовый)</span><select class="select" name="depAirportId" required></select></label>
+                        <label class="field"><span>Аэропорт прилёта</span><select class="select" name="arrAirportId" required></select></label>
+                        <label class="field"><span>STD</span><input class="input" type="datetime-local" name="std" required></label>
+                        <label class="field"><span>STA</span><input class="input" type="datetime-local" name="sta" required></label>
+                    </div>
+                    <button class="btn" type="submit">Сохранить рейс вылета</button>
+                </form>
+            </details>
+        </div>
+    </section>
 </main>
 <script type="module">
-    import { startPage } from '/js/layout.js';
+    import { startPage, showError } from '/js/layout.js';
+    import { api } from '/js/api.js';
+    import { time, today, escapeHtml } from '/js/format.js';
+    import { clearFieldErrors, refSelect, showFieldErrors } from '/js/ui.js';
+
     await startPage({ active: 'turnarounds' });
+    const page = document.getElementById('page');
+    const turnaroundForm = document.getElementById('turnaroundForm');
+    const arrivalForm = document.getElementById('arrivalFlightForm');
+    const departureForm = document.getElementById('departureFlightForm');
+    let baseAirportId;
+    let baseAirportCode;
+
+    turnaroundForm.elements.arrDate.value = today();
+    turnaroundForm.elements.depDate.value = today();
+    arrivalForm.elements.flightDate.value = today();
+    departureForm.elements.flightDate.value = today();
+    turnaroundForm.elements.arrDate.addEventListener('change', () => {
+        arrivalForm.elements.flightDate.value = turnaroundForm.elements.arrDate.value;
+    });
+    turnaroundForm.elements.depDate.addEventListener('change', () => {
+        departureForm.elements.flightDate.value = turnaroundForm.elements.depDate.value;
+    });
+
+    function showFormError(form, error, fieldByCode = {}) {
+        let details = error.details || [];
+        if (!details.length && (error.status === 409 || error.status === 422) && fieldByCode[error.code]) {
+            details = fieldByCode[error.code].map((field) => ({ field, message: error.message }));
+        }
+        const shown = showFieldErrors(form, { ...error, details });
+        if (!shown) {
+            showError(page, error);
+        }
+    }
+
+    const flightFieldErrors = {
+        FLIGHT_EXISTS: ['flightNumber'],
+        INACTIVE_REFERENCE: ['airlineId', 'depAirportId', 'arrAirportId'],
+    };
+    const turnaroundFieldErrors = {
+        FLIGHT_ALREADY_USED: ['arrFlightId', 'depFlightId'],
+        AIRCRAFT_BUSY: ['aircraftId', 'standId'],
+        ROUTE_MISMATCH: ['arrFlightId', 'depFlightId', 'standId'],
+        TIME_ORDER: ['depFlightId'],
+        INACTIVE_REFERENCE: ['aircraftId', 'standId', 'technicianId'],
+        NO_NORMS: ['aircraftId'],
+    };
+
+    function flightLabel(flight) {
+        const code = `${flight.airline?.iataCode || ''} ${flight.flightNumber}${flight.letter || ''}`.trim();
+        return `${code} · ${flight.depAirport}–${flight.arrAirport} · ${time(flight.std)}–${time(flight.sta)}`;
+    }
+
+    function setFlights(direction, flights, selectedId = '') {
+        const fieldName = direction === 'arrival' ? 'arrFlightId' : 'depFlightId';
+        const select = turnaroundForm.elements[fieldName];
+        select.innerHTML = '<option value="">Выберите рейс</option>'
+            + flights.map((flight) => `<option value="${flight.id}">${escapeHtml(flightLabel(flight))}</option>`).join('');
+        if (selectedId) {
+            select.value = String(selectedId);
+        }
+    }
+
+    async function searchFlights(direction) {
+        const arrival = direction === 'arrival';
+        const dateField = arrival ? turnaroundForm.elements.arrDate : turnaroundForm.elements.depDate;
+        const numberField = arrival ? turnaroundForm.elements.arrNumber : turnaroundForm.elements.depNumber;
+        const params = { date: dateField.value, number: numberField.value.trim(), free: true };
+        params[arrival ? 'arrAirportId' : 'depAirportId'] = baseAirportId;
+        const result = await api.get('/flights', params);
+        setFlights(direction, Array.isArray(result) ? result : result.items || []);
+    }
+
+    async function createFlight(form, direction) {
+        clearFieldErrors(form);
+        const values = new FormData(form);
+        const body = Object.fromEntries(values.entries());
+        if (direction === 'arrival') {
+            body.arrAirportId = baseAirportId;
+        } else {
+            body.depAirportId = baseAirportId;
+        }
+        for (const key of ['airlineId', 'depAirportId', 'arrAirportId']) {
+            body[key] = Number(body[key]);
+        }
+        body.letter = body.letter || '';
+        try {
+            const flight = await api.post('/flights', body);
+            if (!flight?.id) {
+                throw new Error('Сервер создал рейс, но не вернул его идентификатор');
+            }
+            const dateField = direction === 'arrival' ? turnaroundForm.elements.arrDate : turnaroundForm.elements.depDate;
+            const numberField = direction === 'arrival' ? turnaroundForm.elements.arrNumber : turnaroundForm.elements.depNumber;
+            dateField.value = body.flightDate;
+            numberField.value = body.flightNumber;
+            await searchFlights(direction);
+            turnaroundForm.elements[direction === 'arrival' ? 'arrFlightId' : 'depFlightId'].value = String(flight.id);
+            form.closest('details').open = false;
+        } catch (error) {
+            showFormError(form, error, flightFieldErrors);
+        }
+    }
+
+    async function loadReferences() {
+        const airports = await api.get('/ref/airports');
+        const [, stands] = await Promise.all([
+            refSelect(turnaroundForm.elements.aircraftId, 'aircraft', {
+                label: (item) => `${item.tailNumber} · ${item.aircraftType} · ${item.airline}`,
+                empty: 'Выберите борт',
+            }),
+            refSelect(turnaroundForm.elements.standId, 'stands', {
+                label: (item) => `${item.airport} · ${item.code}`,
+                empty: 'Выберите стоянку',
+            }),
+        ]);
+        const airportItems = airports.items || airports;
+        const baseAirport = airportItems.find((airport) => airport.iataCode === 'SVO');
+        if (!baseAirport) {
+            throw new Error('В справочнике аэропортов не найден базовый аэропорт SVO');
+        }
+        baseAirportId = baseAirport.id;
+        baseAirportCode = baseAirport.iataCode;
+
+        for (const form of [arrivalForm, departureForm]) {
+            await refSelect(form.elements.airlineId, 'airlines', {
+                label: (item) => `${item.iataCode} · ${item.name}`,
+                empty: 'Выберите авиакомпанию',
+            });
+            await refSelect(form.elements.depAirportId, 'airports', {
+                label: (item) => `${item.iataCode} · ${item.city}`,
+                empty: 'Выберите аэропорт',
+            });
+            await refSelect(form.elements.arrAirportId, 'airports', {
+                label: (item) => `${item.iataCode} · ${item.city}`,
+                empty: 'Выберите аэропорт',
+            });
+        }
+
+        arrivalForm.elements.arrAirportId.value = String(baseAirport.id);
+        departureForm.elements.depAirportId.value = String(baseAirport.id);
+        arrivalForm.elements.arrAirportId.disabled = true;
+        departureForm.elements.depAirportId.disabled = true;
+        const activeStands = stands.filter((stand) => stand.airport === baseAirportCode);
+        const standSelect = turnaroundForm.elements.standId;
+        standSelect.innerHTML = '<option value="">Выберите стоянку</option>'
+            + activeStands.map((stand) => `<option value="${stand.id}">${escapeHtml(stand.code)}</option>`).join('');
+        document.querySelectorAll('[data-search-flight]').forEach((button) => {
+            button.disabled = false;
+        });
+    }
+
+    async function loadTechnicians() {
+        let users;
+        try {
+            users = await api.get('/users', { role: 'technician', isActive: true, size: 100 });
+        } catch (error) {
+            const config = await api.get('/config');
+            if (error.status !== 404 || config.securityMode !== 'dev') {
+                throw error;
+            }
+            users = { items: [{ id: 900001, login: 'tech_demo', shortName: 'Тестовый Техник' }] };
+        }
+        const items = users.items || users;
+        const technicianSelect = turnaroundForm.elements.technicianId;
+        technicianSelect.innerHTML = '<option value="">Выберите техника</option>' + items.map((user) => {
+            const label = user.shortName || [user.lastName, user.firstName].filter(Boolean).join(' ') || user.login;
+            return `<option value="${user.id}">${escapeHtml(label)}${user.login ? ` · ${escapeHtml(user.login)}` : ''}</option>`;
+        }).join('');
+    }
+
+    try {
+        await loadReferences();
+        await Promise.all([searchFlights('arrival'), searchFlights('departure')]);
+    } catch (error) {
+        showError(page, error);
+    }
+    loadTechnicians().catch((error) => showError(page, error));
+
+    document.querySelectorAll('[data-search-flight]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            try {
+                await searchFlights(button.dataset.searchFlight);
+            } catch (error) {
+                showError(page, error);
+            }
+        });
+    });
+
+    arrivalForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        createFlight(arrivalForm, 'arrival');
+    });
+    departureForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        createFlight(departureForm, 'departure');
+    });
+
+    turnaroundForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        clearFieldErrors(turnaroundForm);
+        const body = {
+            arrFlightId: Number(turnaroundForm.elements.arrFlightId.value),
+            depFlightId: Number(turnaroundForm.elements.depFlightId.value),
+            aircraftId: Number(turnaroundForm.elements.aircraftId.value),
+            standId: Number(turnaroundForm.elements.standId.value),
+            technicianId: Number(turnaroundForm.elements.technicianId.value),
+        };
+        const submit = turnaroundForm.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        try {
+            const created = await api.post('/turnarounds', body);
+            if (!created?.id) {
+                throw new Error('Сервер создал оборот, но не вернул его идентификатор');
+            }
+            location.href = `/technician/checklist.html?id=${encodeURIComponent(created.id)}`;
+        } catch (error) {
+            showFormError(turnaroundForm, error, turnaroundFieldErrors);
+        } finally {
+            submit.disabled = false;
+        }
+    });
 </script>
 </body>
 </html>

@@ -20,7 +20,7 @@ import ru.miit.uvp411.checklist.shared.security.CurrentUser;
  * Обороты, раздел 7 спецификации API.
  * Готово: GET /turnarounds?date=, GET /turnarounds/{id}.
  * TODO команда «Бизнес-логика»: фильтры (7.3), POST /turnarounds (7.4), PATCH /turnarounds/{id} (7.6),
- * PATCH /operations/{id} (7.7), allowedActions и elapsedMin в чек-листе, рейсы (7.1, 7.2).
+ * PATCH /operations/{id} (7.7), allowedActions и elapsedMin в чек-листе.
  */
 @RestController
 @RequestMapping("/api/v1/turnarounds")
