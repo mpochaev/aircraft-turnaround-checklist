@@ -3,3 +3,5 @@
 app:
   security:
     mode: dev
+    events:
+      enabled: false

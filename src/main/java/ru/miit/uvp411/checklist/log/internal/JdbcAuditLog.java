@@ -27,11 +27,14 @@ class JdbcAuditLog implements AuditLog {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(Entry e) {
+        insert(e, CurrentUser.get().login());
+    }
+
+    private void insert(Entry e, String login) {
         if (!ActionTypes.exists(e.actionType())) {
             throw new IllegalArgumentException("Неизвестный вид действия журнала: " + e.actionType()
                     + ". Коды перечислены в ActionTypes и в таблице 8.1 спецификации API");
         }
-        String login = CurrentUser.get().login();
         jdbc.sql("""
                         insert into log.action_log (user_id, login, action_type, entity, entity_id, turnaround_id, old_value, new_value)
                         values ((select id from auth.app_user where login = :login), :login, :type, :entity, :entityId, :turnaroundId,

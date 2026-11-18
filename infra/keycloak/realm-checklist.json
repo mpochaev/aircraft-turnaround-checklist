@@ -20,6 +20,10 @@
   "ssoSessionIdleTimeout": 2700,
   "ssoSessionMaxLifespan": 43200,
   "accessTokenLifespan": 300,
+  "eventsEnabled": true,
+  "eventsListeners": ["jboss-logging"],
+  "enabledEventTypes": ["LOGIN", "LOGIN_ERROR", "LOGOUT"],
+  "eventsExpiration": 2592000,
   "roles": {
     "realm": [
       { "name": "technician", "description": "Техник" },
