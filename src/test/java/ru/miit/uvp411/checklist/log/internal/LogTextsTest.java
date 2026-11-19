@@ -13,7 +13,8 @@ class LogTextsTest {
     private final LogTexts.Names names = new LogTexts.Names(Map.of(
             "airline", Map.of(1L, "SU"),
             "airport", Map.of(1L, "SVO", 2L, "KGD"),
-            "user", Map.of(7L, "Иванов П.")));
+            "user", Map.of(7L, "Иванов П."),
+            "flight", Map.of(5L, "SU 1001", 6L, "SU 1002")));
 
     @Test
     void flightIsOneLine() {
@@ -37,6 +38,12 @@ class LogTextsTest {
         assertThat(LogTexts.describe(Map.of("technicianId", 99), names)).isEqualTo("№ 99");
         assertThat(LogTexts.describe(Map.of("status", "in_progress", "actualStart", "2026-11-13T10:02:00"), names))
                 .isEqualTo("в работе");
+    }
+
+    @Test
+    void turnaroundShowsFlightsByName() {
+        assertThat(LogTexts.describe(Map.of("arrFlightId", 5, "depFlightId", 6, "technicianId", 7), names))
+                .contains("рейс прилёта SU 1001").contains("рейс вылета SU 1002").contains("техник Иванов П.");
     }
 
     @Test

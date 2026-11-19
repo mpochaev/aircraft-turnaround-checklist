@@ -26,7 +26,8 @@ public class LogTexts {
             Map.entry("aircraftId", "aircraft"), Map.entry("aircraftTypeId", "aircraft_type"),
             Map.entry("standId", "stand"), Map.entry("technicianId", "user"),
             Map.entry("executorId", "user"), Map.entry("userId", "user"),
-            Map.entry("delayCodeId", "delay_code"), Map.entry("operationId", "operation"));
+            Map.entry("delayCodeId", "delay_code"), Map.entry("operationId", "operation"),
+            Map.entry("arrFlightId", "flight"), Map.entry("depFlightId", "flight"));
 
     private static final Map<String, String> NAME_SQL = Map.of(
             "airline", "select id, iata_code as name from ref.airline where id in (:ids)",
@@ -36,7 +37,8 @@ public class LogTexts {
             "stand", "select id, code as name from ref.stand where id in (:ids)",
             "user", "select id, last_name || ' ' || left(first_name, 1) || '.' as name from auth.app_user where id in (:ids)",
             "delay_code", "select id, code as name from ref.delay_code where id in (:ids)",
-            "operation", "select id, name from ref.operation where id in (:ids)");
+            "operation", "select id, name from ref.operation where id in (:ids)",
+            "flight", "select f.id, a.iata_code || ' ' || f.flight_number || f.letter as name from ops.flight f join ref.airline a on a.id = f.airline_id where f.id in (:ids)");
 
     private static final Map<String, String> LABELS = Map.ofEntries(
             Map.entry("flightNumber", "рейс"), Map.entry("letter", "литера"), Map.entry("flightDate", "дата"),
@@ -45,7 +47,8 @@ public class LogTexts {
             Map.entry("aircraftId", "борт"), Map.entry("aircraftTypeId", "тип ВС"), Map.entry("standId", "стоянка"),
             Map.entry("technicianId", "техник"), Map.entry("executorId", "исполнитель"), Map.entry("userId", "пользователь"),
             Map.entry("delayCodeId", "код задержки"), Map.entry("delayCode", "код задержки"),
-            Map.entry("operationId", "операция"), Map.entry("aircraft", "борт"), Map.entry("stand", "стоянка"),
+            Map.entry("operationId", "операция"), Map.entry("arrFlightId", "рейс прилёта"), Map.entry("depFlightId", "рейс вылета"),
+            Map.entry("aircraft", "борт"), Map.entry("stand", "стоянка"),
             Map.entry("technician", "техник"), Map.entry("flight", "рейс"));
 
     private static final Map<String, String> STATUS = Map.ofEntries(
