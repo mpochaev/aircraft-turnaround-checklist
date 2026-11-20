@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import ru.miit.uvp411.checklist.ops.internal.OperationService;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundQueries;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundRequest;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundService;
@@ -28,7 +29,7 @@ import ru.miit.uvp411.checklist.shared.security.CurrentUser;
  * Обороты, раздел 7 спецификации API.
  * Готово: GET /turnarounds?date=, GET /turnarounds/{id}, POST /turnarounds.
  * TODO команда «Бизнес-логика»: фильтры (7.3), PATCH /turnarounds/{id} (7.6),
- * PATCH /operations/{id} (7.7), allowedActions и elapsedMin в чек-листе.
+ * elapsedMin и allowedActions самого оборота.
  */
 @RestController
 @RequestMapping("/api/v1/turnarounds")
@@ -36,10 +37,12 @@ class TurnaroundController {
 
     private final TurnaroundQueries queries;
     private final TurnaroundService service;
+    private final OperationService operations;
 
-    TurnaroundController(TurnaroundQueries queries, TurnaroundService service) {
+    TurnaroundController(TurnaroundQueries queries, TurnaroundService service, OperationService operations) {
         this.queries = queries;
         this.service = service;
+        this.operations = operations;
     }
 
     /**
@@ -62,7 +65,10 @@ class TurnaroundController {
             throw ApiException.notFound("Оборот");   // спецификация 7.5: чужой оборот выглядит как несуществующий
         }
         Map<String, Object> body = new LinkedHashMap<>(t);
-        body.put("operations", queries.operations(id));
+        body.put("operations", queries.operations(id).stream()
+                .map(operation -> operations.withAllowedActions(operation, (String) t.get("status"),
+                        (String) t.get("technicianLogin"), user))
+                .toList());
         return body;
     }
 

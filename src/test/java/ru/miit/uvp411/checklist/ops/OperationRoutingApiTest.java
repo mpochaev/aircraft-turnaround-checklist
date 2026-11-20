@@ -3,13 +3,15 @@ package ru.miit.uvp411.checklist.ops;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,7 +22,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import ru.miit.uvp411.checklist.IntegrationTest;
 import ru.miit.uvp411.checklist.ops.internal.OperationAction;
@@ -29,18 +33,18 @@ import ru.miit.uvp411.checklist.ops.internal.OperationContext;
 import ru.miit.uvp411.checklist.ops.internal.OperationRequest;
 import ru.miit.uvp411.checklist.ops.internal.OpsAudit;
 
-/** Приёмка каркаса к 13.11. Тестовые обработчики не подключаются в рабочем приложении. */
+/** Проверки запуска операции, журнала и подключения обработчиков к API. */
 @Import(OperationRoutingApiTest.Handlers.class)
 class OperationRoutingApiTest extends IntegrationTest {
 
     @Autowired
-    TestStartHandler startHandler;
+    TransactionTemplate transaction;
 
     @Autowired
     OpsAudit audit;
 
     @Test
-    void loadsOperationTurnaroundAndDependenciesThenReturnsSavedDataAndJournal() throws Exception {
+    void startsOperationAfterCompletedPredecessorAndWritesJournal() throws Exception {
         Fixture fixture = operation("in_service", "not_started");
         LocalDateTime now = LocalDateTime.now().withNano(0);
         long predecessor = data.operation(fixture.turnaround(), "DEBOARD", "done",
@@ -57,26 +61,78 @@ class OperationRoutingApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.operation.actualEnd").isEmpty())
                 .andExpect(jsonPath("$.operation.executor.id", is(data.userId("tech07"))))
                 .andExpect(jsonPath("$.operation.waitsFor").isEmpty())
+                .andExpect(jsonPath("$.operation.allowedActions").isEmpty())
                 .andExpect(jsonPath("$.turnaround.id", is((int) fixture.turnaround())))
                 .andExpect(jsonPath("$.turnaround.status", is("in_service")))
                 .andExpect(jsonPath("$.turnaround.progress.done", is(1)))
                 .andExpect(jsonPath("$.turnaround.progress.total", is(2)));
 
-        OperationContext context = startHandler.lastContext;
-        assertThat(context.operation().id()).isEqualTo(fixture.operation());
-        assertThat(context.operation().status()).isEqualTo("not_started");
-        assertThat(context.operation().normId()).isPositive();
-        assertThat(context.turnaround().technicianLogin()).isEqualTo("tech07");
-        assertThat(context.predecessors()).hasSize(1);
-        assertThat(context.predecessors().getFirst().id()).isEqualTo(predecessor);
-        assertThat(context.predecessors().getFirst().completed()).isTrue();
         Map<String, Object> entry = jdbc.sql("""
                         select login, turnaround_id, old_value ->> 'status' as before,
-                               new_value ->> 'status' as after, old_value ->> 'actualStart' as old_start
+                               new_value ->> 'status' as after, old_value ->> 'actualStart' as old_start,
+                               new_value ->> 'actualStart' as new_start, new_value ->> 'executorId' as executor
                         from log.action_log where entity = 'operation_exec' and entity_id = :id and action_type = 'op_start'
                         """).param("id", fixture.operation()).query().singleRow();
         assertThat(entry).containsEntry("login", "tech07").containsEntry("turnaround_id", fixture.turnaround())
-                .containsEntry("before", "not_started").containsEntry("after", "in_progress").containsEntry("old_start", null);
+                .containsEntry("before", "not_started").containsEntry("after", "in_progress").containsEntry("old_start", null)
+                .containsEntry("executor", String.valueOf(data.userId("tech07")));
+        assertThat(entry.get("new_start")).isNotNull();
+    }
+
+    @Test
+    void checklistAndStartAgreeAboutBlockingPredecessors() throws Exception {
+        Fixture fixture = operation("in_service", "not_started");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        long predecessor = data.operation(fixture.turnaround(), "DEICE", "not_started", now, now.plusMinutes(10), null, null);
+        jdbc.sql("insert into ops.exec_dependency (exec_id, prev_exec_id) values (:id, :prev)")
+                .param("id", fixture.operation()).param("prev", predecessor).update();
+
+        mvc.perform(get("/api/v1/turnarounds/{id}", fixture.turnaround())
+                        .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician"))
+                .andExpect(jsonPath("$.operations[0].waitsFor[0]", is((int) predecessor)))
+                .andExpect(jsonPath("$.operations[0].allowedActions").isEmpty());
+        mvc.perform(start(fixture.operation())).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code", is("PREDECESSORS_NOT_DONE")))
+                .andExpect(jsonPath("$.error.details[0].value", is((int) predecessor)));
+        assertUnchanged(fixture);
+
+        jdbc.sql("update ops.operation_exec set status = 'not_required' where id = :id").param("id", predecessor).update();
+        mvc.perform(get("/api/v1/turnarounds/{id}", fixture.turnaround())
+                        .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician"))
+                .andExpect(jsonPath("$.operations[0].waitsFor").isEmpty())
+                .andExpect(jsonPath("$.operations[0].allowedActions[0]", is("start")));
+        mvc.perform(start(fixture.operation())).andExpect(status().isOk());
+        mvc.perform(start(fixture.operation())).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code", is("INVALID_TRANSITION")));
+        assertThat(logCount(fixture.operation())).isEqualTo(1);
+    }
+
+    @Test
+    void independentOperationsStartWhileAnotherStartTransactionIsOpen() {
+        Fixture fixture = operation("in_service", "not_started");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        long independent = data.operation(fixture.turnaround(), "CLEAN", "not_started", now, now.plusMinutes(10), null, null);
+
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            transaction.executeWithoutResult(result -> {
+                try {
+                    mvc.perform(start(fixture.operation())).andExpect(status().isOk());
+                    worker.submit(() -> mvc.perform(start(independent)).andExpect(status().isOk()))
+                            .get(5, TimeUnit.SECONDS);
+                    assertThat(operationStatus(independent)).isEqualTo("in_progress");
+                } catch (Exception error) {
+                    throw new AssertionError("Независимая операция должна начаться до завершения первой транзакции", error);
+                }
+            });
+        }
+        assertThat(operationStatus(fixture.operation())).isEqualTo("in_progress");
+        assertThat(logCount(independent)).isEqualTo(1);
+    }
+
+    private static MockHttpServletRequestBuilder start(long id) {
+        return patch("/api/v1/operations/{id}", id)
+                .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"in_progress\"}");
     }
 
     @Test
@@ -254,11 +310,6 @@ class OperationRoutingApiTest extends IntegrationTest {
     static class Handlers {
 
         @Bean
-        TestStartHandler testStartHandler(JdbcClient jdbc, OpsAudit audit) {
-            return new TestStartHandler(jdbc, audit);
-        }
-
-        @Bean
         OperationActionHandler testNotRequiredHandler(JdbcClient jdbc, OpsAudit audit) {
             return new OperationActionHandler() {
                 @Override
@@ -277,35 +328,4 @@ class OperationRoutingApiTest extends IntegrationTest {
         }
     }
 
-    /** Минимальный тестовый плагин для проверки диспетчеризации и транзакции, не реализация действия к 20.11. */
-    static class TestStartHandler implements OperationActionHandler {
-
-        private final JdbcClient jdbc;
-        private final OpsAudit audit;
-        private OperationContext lastContext;
-
-        TestStartHandler(JdbcClient jdbc, OpsAudit audit) {
-            this.jdbc = jdbc;
-            this.audit = audit;
-        }
-
-        @Override
-        public OperationAction action() {
-            return OperationAction.START;
-        }
-
-        @Override
-        public void handle(OperationContext context, OperationRequest request) {
-            lastContext = context;
-            jdbc.sql("""
-                    update ops.operation_exec set status = 'in_progress', actual_start = localtimestamp,
-                           executor_id = :executor where id = :id
-                    """).param("executor", context.turnaround().technicianId()).param("id", context.operation().id()).update();
-            Map<String, Object> before = new LinkedHashMap<>();
-            before.put("status", context.operation().status());
-            before.put("actualStart", context.operation().actualStart());
-            audit.operation("op_start", context.operation().id(), context.turnaround().id(), before,
-                    Map.of("status", "in_progress"));
-        }
-    }
 }
