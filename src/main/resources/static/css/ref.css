@@ -1,0 +1,128 @@
+.ref-page {
+    background: var(--c-bg);
+    min-height: calc(100vh - 56px);
+}
+
+.ref-page .split {
+    grid-template-columns: 245px minmax(0, 1fr);
+    gap: var(--sp-6);
+}
+
+.ref-page .list {
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.ref-page .list li {
+    border-bottom: var(--border);
+    border-radius: 0;
+    padding: var(--sp-4);
+}
+
+.ref-page .list li:last-child {
+    border-bottom: 0;
+}
+
+.ref-page .list button {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ref-page h1 {
+    margin-bottom: var(--sp-4);
+}
+
+.ref-page .toolbar .actions {
+    display: flex;
+    gap: var(--sp-2);
+    margin-left: auto;
+}
+
+.ref-page .table {
+    border-collapse: collapse;
+}
+
+.ref-page .table th,
+.ref-page .table td {
+    border: var(--border);
+    padding: var(--sp-3);
+}
+
+.ref-page tr.selected td {
+    background: var(--c-selected);
+}
+
+.ref-page tbody tr[data-id] {
+    cursor: pointer;
+}
+
+.ref-page tbody tr:focus {
+    outline: 2px solid var(--c-text);
+    outline-offset: -2px;
+}
+
+.ref-page .table-wrap {
+    border-radius: 0;
+}
+
+#editor {
+    width: min(600px, calc(100vw - 32px));
+    max-height: 90vh;
+    overflow: auto;
+}
+
+#fields {
+    display: grid;
+    gap: var(--sp-3);
+}
+
+#fields .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+#fields select[multiple] {
+    min-height: 140px;
+}
+
+#editor .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+}
+
+@media (max-width: 1000px) {
+    .ref-page .split {
+        grid-template-columns: 190px minmax(0, 1fr);
+    }
+
+    .ref-page .toolbar .actions {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 650px) {
+    .ref-page .split {
+        grid-template-columns: 1fr;
+    }
+}
+
+.ref-page .table-wrap { height: auto; max-height: none; overflow: visible; }
+.ref-page .table { border-collapse: separate; border-spacing: 0; }
+.ref-page .table th { position: sticky; top: 0; z-index: 2; background: var(--c-surface, #f4f4f4); }
+.ref-page .table th button { border: 0; background: transparent; color: inherit; font: inherit; font-weight: bold; cursor: pointer; width: 100%; text-align: inherit; }
+.ref-pagination, #pager { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.ref-pagination { justify-content: space-between; margin-top: 18px; }
+.ref-pagination label { display: flex; align-items: center; gap: 8px; }
+.editor-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+#editor { border: 1px solid #aaa; border-radius: 14px; box-shadow: 0 18px 60px #0003; }
+#editor::backdrop { background: #0005; }

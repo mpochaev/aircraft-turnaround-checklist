@@ -4,67 +4,85 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Справочники</title>
+
     <link rel="stylesheet" href="/css/tokens.css">
     <link rel="stylesheet" href="/css/ui.css">
+    <link rel="stylesheet" href="/css/ref.css">
+    <script type="module" src="/js/ref.js"></script>
 </head>
 <body>
 <header class="app-header"></header>
-<main class="page" id="page">
-    <div class="page-header">
-        <h1>Справочники</h1>
-        <div class="actions">
-            <button class="btn" disabled title="Делает команда «Справочники»: POST /ref/{dictionary}">Добавить</button>
-        </div>
-    </div>
+
+<main class="page ref-page" id="page">
     <div class="split">
-        <ul class="list" id="dicts"></ul>
-        <div>
+        <nav aria-label="Справочники">
+            <ul class="list" id="dicts"></ul>
+        </nav>
+
+        <section aria-labelledby="title">
+            <h1 id="title">Нормативы операций</h1>
+
             <div class="toolbar">
-                <label><input type="checkbox" id="inactive"> показать деактивированные</label>
-                <span class="muted small" id="total"></span>
+                <label id="type-filter">
+                    Тип ВС
+                    <select class="select" id="aircraft-type" aria-label="Тип ВС"></select>
+                </label>
+
+                <label id="airport-filter" class="hidden">
+                    Аэропорт
+                    <select class="select" id="airport" aria-label="Аэропорт"></select>
+                </label>
+
+                <label>
+                    <span class="hidden">Поиск</span>
+                    <input class="input" type="search" id="search"
+                           placeholder="Поиск" maxlength="50" aria-label="Поиск">
+                </label>
+
+                <label>
+                    <input type="checkbox" id="inactive">
+                    показывать неактивные
+                </label>
+
+                <div class="actions">
+                    <button class="btn" type="button" id="add" disabled>Добавить</button>
+                    <button class="btn" type="button" id="edit" disabled>Изменить</button>
+                    <button class="btn" type="button" id="deactivate" disabled>Деактивировать</button>
+                </div>
             </div>
-            <div class="table-wrap"><table class="table" id="table"></table></div>
-        </div>
+
+            <p class="muted small" id="state" role="status" aria-live="polite"></p>
+
+            <div class="table-wrap">
+                <table class="table" id="table" aria-label="Записи справочника"></table>
+            </div>
+
+            <div class="ref-pagination">
+                <label>Строк на странице
+                    <select class="select" id="page-size">
+                        <option>10</option><option selected>25</option><option>50</option>
+                    </select>
+                </label>
+                <div id="pager"></div>
+            </div>
+        </section>
     </div>
-    <p class="wip">Добавление, изменение и деактивацию записей делает команда «Справочники»: спецификация API, разделы 6.2, 6.3, 10.7.</p>
 </main>
-<script type="module">
-    import { startPage, showError } from '/js/layout.js';
-    import { api } from '/js/api.js';
-    import { escapeHtml } from '/js/format.js';
 
-    await startPage({ active: 'ref' });
-    const NAMES = {
-        airports: 'Аэропорты', airlines: 'Авиакомпании', stands: 'Стоянки', 'aircraft-types': 'Типы ВС',
-        aircraft: 'Воздушные суда', operations: 'Наземные операции', 'operation-norms': 'Нормативы операций',
-        'delay-codes': 'Коды задержек',
-    };
-    let current = 'airports';
+<dialog class="dialog" id="editor" aria-labelledby="editor-title">
+    <form id="form" novalidate>
+        <div class="editor-header">
+            <h2 id="editor-title"></h2>
+            <button type="button" class="btn" id="close-editor" aria-label="Закрыть">×</button>
+        </div>
+        <div id="form-error"></div>
+        <div id="fields"></div>
 
-    const { items } = await api.get('/ref');
-    const list = document.getElementById('dicts');
-    list.innerHTML = items.map((d) => `<li data-d="${d}">${NAMES[d] || d}</li>`).join('');
-    list.addEventListener('click', (e) => {
-        const li = e.target.closest('li[data-d]');
-        if (li) { current = li.dataset.d; load(); }
-    });
-    document.getElementById('inactive').addEventListener('change', load);
-
-    async function load() {
-        list.querySelectorAll('li').forEach((li) => li.classList.toggle('selected', li.dataset.d === current));
-        try {
-            const data = await api.get(`/ref/${current}`, { isActive: document.getElementById('inactive').checked ? 'all' : 'true' });
-            const cols = data.items.length ? Object.keys(data.items[0]).filter((c) => c !== 'id') : [];
-            document.getElementById('total').textContent = `записей: ${data.total}`;
-            document.getElementById('table').innerHTML = `
-                <thead><tr>${cols.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
-                <tbody>${data.items.map((r) => `<tr>${cols.map((c) => `<td>${
-                    typeof r[c] === 'boolean' ? (r[c] ? 'да' : 'нет') : escapeHtml(r[c] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody>`;
-        } catch (e) {
-            showError(document.getElementById('page'), e);
-        }
-    }
-    load();
-</script>
+        <div class="actions">
+            <button class="btn" type="button" id="cancel">Отмена</button>
+            <button class="btn btn-primary" type="submit" id="save">Сохранить</button>
+        </div>
+    </form>
+</dialog>
 </body>
 </html>
