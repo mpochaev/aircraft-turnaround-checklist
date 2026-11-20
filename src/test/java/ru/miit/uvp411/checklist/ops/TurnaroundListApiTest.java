@@ -54,7 +54,7 @@ class TurnaroundListApiTest extends IntegrationTest {
         mvc.perform(get("/api/v1/turnarounds")
                         .param("dateFrom", arrivalAt.toLocalDate().toString())
                         .param("dateTo", arrivalAt.toLocalDate().toString())
-                        .param("status", "planned")
+                        .param("status", "planned,ready")
                         .param("aircraftId", String.valueOf(aircraft))
                         .param("onlyIssues", "true")
                         .param("page", "2")
