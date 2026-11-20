@@ -74,6 +74,8 @@ public class TurnaroundQueries {
                                e.planned_start as "plannedStart", e.planned_end as "plannedEnd",
                                e.actual_start as "actualStart", e.actual_end as "actualEnd",
                                dc.code as "delayCode", e.comment,
+                        """ + OperationQueries.WAITS_FOR + """
+                               ,
                                (select string_agg(po.code, ',' order by pe.seq_no)
                                   from ops.exec_dependency d
                                   join ops.operation_exec pe on pe.id = d.prev_exec_id
