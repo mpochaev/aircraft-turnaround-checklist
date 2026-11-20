@@ -39,9 +39,9 @@
 |---|---|---|---|
 | `GET /flights` | готово: date, airlineId, number, arrAirportId, depAirportId, free | 7.1 | 21 |
 | `POST /flights` | готово: уникальность по шести полям ключа и журнал `flight_created` | 7.2 | 21, 22 |
-| `GET /turnarounds` | готово, добавить фильтры: стоянки, авиакомпания, только с проблемами, статус | 7.3 | 43, 44 |
+| `GET /turnarounds` | готово: диапазон дат, статусы, авиакомпания, борт, номер рейса, диапазон стоянок, `onlyIssues`, пагинация | 7.3 | 43, 44 |
 | `POST /turnarounds` | нормативы через `RefApi.activeNorms`, активность через `RefApi.isActive`, план по зависимостям | 7.4 | 23–26 |
-| `GET /turnarounds/{id}` | готово, добавить `allowedActions` | 7.5 | |
+| `GET /turnarounds/{id}` | готово: исполнитель, невыполненные зависимости, `elapsedMin`, `delayMin`; добавить `allowedActions` | 7.5 | |
 | `PATCH /turnarounds/{id}` | переходы по диаграмме состояний оборота (ЧТЗ, рисунок А.2) | 7.6 | 27, 35–38 |
 | `PATCH /operations/{id}` | переходы по рисунку А.3 ЧТЗ; ошибки `PREDECESSORS_NOT_DONE`, `DELAY_CODE_REQUIRED`, `MANDATORY_OPERATION`, `COMMENT_REQUIRED` | 7.7 | 28–33, 39–42 |
 
