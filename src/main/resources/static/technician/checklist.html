@@ -8,9 +8,9 @@
     <link rel="stylesheet" href="/css/ui.css">
     <style>
         .cl-head { display: flex; gap: var(--sp-4); align-items: flex-start; margin-bottom: var(--sp-4); }
-        .cl-head .btn { margin-left: auto; }
+        .cl-head-actions { margin-left: auto; display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
         .cl-mark { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
-        .cl-foot { display: flex; gap: var(--sp-4); align-items: center; margin-top: var(--sp-4); }
+        .cl-foot { display: flex; gap: var(--sp-4); align-items: center; margin-top: var(--sp-4); flex-wrap: wrap; }
     </style>
 </head>
 <body class="touch">
@@ -22,17 +22,18 @@
             <div id="sub" class="muted"></div>
             <div id="summary"></div>
         </div>
-        <button type="button" class="btn btn-wide" id="onBlock" data-action="on_block" disabled
-                title="Доступно, когда сервер вернёт действие в allowedActions">Постановка ВС</button>
+        <div class="cl-head-actions">
+            <button type="button" class="btn btn-wide" id="onBlock" data-action="on_block" disabled>Постановка ВС</button>
+            <button type="button" class="btn btn-wide" id="readyBtn" data-action="ready" disabled>Подтвердить готовность</button>
+        </div>
     </div>
     <table class="table">
         <thead><tr><th>№</th><th>Операция</th><th>План</th><th>Факт</th><th>Отметка</th></tr></thead>
         <tbody id="rows"></tbody>
     </table>
     <div class="cl-foot">
-        <button type="button" class="btn btn-wide" id="offBlock" data-action="off_block" disabled
-                title="Доступно после подтверждения готовности супервайзером">Отправление ВС</button>
-        <span class="muted" id="offHint">станет доступна после подтверждения готовности супервайзером</span>
+        <button type="button" class="btn btn-wide" id="offBlock" data-action="off_block" disabled>Отправление ВС</button>
+        <span class="muted" id="offHint">станет доступна после подтверждения готовности</span>
     </div>
 </main>
 <script type="module">
@@ -99,16 +100,30 @@
         return `<span class="cl-mark" data-op-id="${op.id}">${actions}${waitHtml ? ' ' + waitHtml : ''}</span>`;
     }
 
+    function actionAllowed(t, codes) {
+        if (Array.isArray(t.allowedActions)) {
+            const set = new Set(t.allowedActions);
+            return codes.some((c) => set.has(c));
+        }
+        if (codes.includes('on_block') || codes.includes('in_service')) return t.status === 'planned';
+        if (codes.includes('ready')) return t.status === 'in_service';
+        if (codes.includes('off_block') || codes.includes('closed')) return t.status === 'ready';
+        return false;
+    }
+
     function syncTurnaroundButtons(t) {
-        const allowed = new Set(t.allowedActions || []);
         const onBlock = document.getElementById('onBlock');
+        const readyBtn = document.getElementById('readyBtn');
         const offBlock = document.getElementById('offBlock');
-        const canOn = allowed.has('on_block') || allowed.has('in_service');
-        const canOff = allowed.has('off_block') || allowed.has('closed');
+        const canOn = actionAllowed(t, ['on_block', 'in_service']);
+        const canReady = actionAllowed(t, ['ready']);
+        const canOff = actionAllowed(t, ['off_block', 'closed']);
         onBlock.disabled = !canOn;
+        readyBtn.disabled = !canReady;
         offBlock.disabled = !canOff;
-        onBlock.title = canOn ? '' : 'Станет доступна, когда сервер вернёт действие в allowedActions';
-        offBlock.title = canOff ? '' : 'Станет доступна после подтверждения готовности супервайзером';
+        onBlock.title = canOn ? '' : 'Доступна в статусе «Запланирован»';
+        readyBtn.title = canReady ? '' : 'Доступна в статусе «Обслуживание», когда выполнены обязательные операции';
+        offBlock.title = canOff ? '' : 'Доступна после подтверждения готовности';
         document.getElementById('offHint').style.display = canOff ? 'none' : '';
     }
 
@@ -167,7 +182,11 @@
             }
         } catch {
         } finally {
-            btn.disabled = false;
+            if (turnaround) {
+                syncTurnaroundButtons(turnaround);
+            } else {
+                btn.disabled = false;
+            }
         }
     });
 
