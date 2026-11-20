@@ -8,7 +8,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import ru.miit.uvp411.checklist.log.AuditLog;
 import ru.miit.uvp411.checklist.ref.RefApi;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
 
@@ -17,12 +16,12 @@ public class FlightService {
 
     private final FlightQueries queries;
     private final RefApi refApi;
-    private final AuditLog auditLog;
+    private final OpsAudit audit;
 
-    public FlightService(FlightQueries queries, RefApi refApi, AuditLog auditLog) {
+    public FlightService(FlightQueries queries, RefApi refApi, OpsAudit audit) {
         this.queries = queries;
         this.refApi = refApi;
-        this.auditLog = auditLog;
+        this.audit = audit;
     }
 
     @Transactional
@@ -38,7 +37,7 @@ public class FlightService {
         try {
             id = queries.insert(request);
         } catch (DuplicateKeyException e) {
-            throw new ApiException(HttpStatus.CONFLICT, "FLIGHT_EXISTS",
+            throw new ApiException(HttpStatus.CONFLICT, OpsErrors.FLIGHT_EXISTS,
                     "Рейс с таким ключом уже существует");
         }
 
@@ -51,7 +50,7 @@ public class FlightService {
         values.put("arrAirportId", request.arrAirportId());
         values.put("std", request.std());
         values.put("sta", request.sta());
-        auditLog.record(new AuditLog.Entry("flight_created", "flight", id, null, null, values));
+        audit.flightCreated(id, values);
         return queries.byId(id);
     }
 
