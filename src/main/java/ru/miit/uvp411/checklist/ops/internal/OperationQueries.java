@@ -82,6 +82,34 @@ public class OperationQueries {
                 .single();
     }
 
+    LocalDateTime currentTime() {
+        return jdbc.sql("select date_trunc('second', clock_timestamp()::timestamp)")
+                .query((rs, row) -> rs.getObject(1, LocalDateTime.class))
+                .single();
+    }
+
+    void finish(long id, LocalDateTime actualEnd, int executorId, Integer delayCodeId) {
+        jdbc.sql("""
+                        update ops.operation_exec
+                        set status = 'done', actual_end = :actualEnd, executor_id = :executorId,
+                            delay_code_id = :delayCodeId
+                        where id = :id
+                        """)
+                .param("id", id)
+                .param("actualEnd", actualEnd)
+                .param("executorId", executorId)
+                .param("delayCodeId", delayCodeId, java.sql.Types.INTEGER)
+                .update();
+    }
+
+    void updateStatusAndComment(long id, String status, String comment) {
+        jdbc.sql("""
+                        update ops.operation_exec set status = :status, comment = :comment where id = :id
+                        """)
+                .param("id", id).param("status", status).param("comment", comment)
+                .update();
+    }
+
     /** Повторное чтение после обработчика: клиент получает сохранённые значения, а не старый снимок. */
     public Map<String, Object> operation(long id) {
         return Rows.clean(jdbc.sql("""
