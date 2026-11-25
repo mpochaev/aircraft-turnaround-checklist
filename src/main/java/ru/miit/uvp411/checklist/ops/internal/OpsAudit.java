@@ -45,6 +45,14 @@ public class OpsAudit {
         record(actionType, "operation_exec", operationId, turnaroundId, before, after);
     }
 
+    void operationStatusWithComment(String actionType, OperationContext context, String status, String comment) {
+        OperationContext.Operation previous = context.operation();
+        Map<String, Object> before = new LinkedHashMap<>();
+        before.put("status", previous.status());
+        before.put("comment", previous.comment());
+        operation(actionType, previous.id(), context.turnaround().id(), before, Map.of("status", status, "comment", comment));
+    }
+
     private static Map<String, Object> snapshot(Map<String, Object> values) {
         // Фактические времена, исполнитель и комментарий могут быть null.
         return values == null ? null : new LinkedHashMap<>(values);
