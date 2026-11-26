@@ -115,8 +115,9 @@ public class LogQueries {
         out.put("oldValue", r.get("old_value"));
         out.put("newValue", r.get("new_value"));
         // те же значения понятным текстом: названия вместо id (на экране журнала и в профиле)
-        out.put("oldText", LogTexts.describe(r.get("old_value"), names));
-        out.put("newText", LogTexts.describe(r.get("new_value"), names));
+        Object[] changed = LogTexts.changedOnly(r.get("old_value"), r.get("new_value"));
+        out.put("oldText", LogTexts.describe(changed[0], names));
+        out.put("newText", LogTexts.describe(changed[1], names));
         return out;
     }
 

@@ -27,7 +27,8 @@ public class LogTexts {
             Map.entry("standId", "stand"), Map.entry("technicianId", "user"),
             Map.entry("executorId", "user"), Map.entry("userId", "user"),
             Map.entry("delayCodeId", "delay_code"), Map.entry("operationId", "operation"),
-            Map.entry("arrFlightId", "flight"), Map.entry("depFlightId", "flight"));
+            Map.entry("arrFlightId", "flight"), Map.entry("depFlightId", "flight"),
+            Map.entry("roleIds", "role"));
 
     private static final Map<String, String> NAME_SQL = Map.of(
             "airline", "select id, iata_code as name from ref.airline where id in (:ids)",
@@ -38,6 +39,7 @@ public class LogTexts {
             "user", "select id, last_name || ' ' || left(first_name, 1) || '.' as name from auth.app_user where id in (:ids)",
             "delay_code", "select id, code as name from ref.delay_code where id in (:ids)",
             "operation", "select id, name from ref.operation where id in (:ids)",
+            "role", "select id, name from auth.role where id in (:ids)",
             "flight", "select f.id, a.iata_code || ' ' || f.flight_number || f.letter as name from ops.flight f join ref.airline a on a.id = f.airline_id where f.id in (:ids)");
 
     private static final Map<String, String> LABELS = Map.ofEntries(
@@ -48,6 +50,14 @@ public class LogTexts {
             Map.entry("technicianId", "техник"), Map.entry("executorId", "исполнитель"), Map.entry("userId", "пользователь"),
             Map.entry("delayCodeId", "код задержки"), Map.entry("delayCode", "код задержки"),
             Map.entry("operationId", "операция"), Map.entry("arrFlightId", "рейс прилёта"), Map.entry("depFlightId", "рейс вылета"),
+            Map.entry("login", "логин"), Map.entry("lastName", "фамилия"), Map.entry("firstName", "имя"),
+            Map.entry("middleName", "отчество"), Map.entry("roleIds", "роли"), Map.entry("roleCodes", "роли"),
+            Map.entry("isActive", "активна"), Map.entry("unlock", "разблокировка"), Map.entry("resetPassword", "сброс пароля"),
+            Map.entry("name", "название"), Map.entry("code", "код"), Map.entry("permissionCodes", "права"),
+            Map.entry("kind", "вид"), Map.entry("iataCode", "код"), Map.entry("tailNumber", "борт"),
+            Map.entry("city", "город"), Map.entry("seqNo", "порядок"), Map.entry("durationMin", "длительность, мин"),
+            Map.entry("isMandatory", "обязательная"), Map.entry("aircraftType", "тип ВС"), Map.entry("airline", "авиакомпания"),
+            Map.entry("operationCode", "операция"), Map.entry("after", "после"),
             Map.entry("aircraft", "борт"), Map.entry("stand", "стоянка"),
             Map.entry("technician", "техник"), Map.entry("flight", "рейс"));
 
@@ -65,9 +75,11 @@ public class LogTexts {
             "user_temporarily_disabled", "учётная запись заблокирована на 15 минут",
             "user_disabled", "учётная запись отключена");
 
+    private static final Map<String, String> KINDS = Map.of("personal_data", "изменение ФИО", "password_reset", "сброс пароля");
+
     private static final List<String> TEXT_FIELDS = List.of("comment", "cancelReason", "reason");
     /** Время отметки совпадает со временем записи журнала, служебные поля на экран не выводим. */
-    private static final Set<String> HIDDEN = Set.of("actualStart", "actualEnd", "onBlockAt", "readyAt", "offBlockAt", "source");
+    private static final Set<String> HIDDEN = Set.of("actualStart", "actualEnd", "onBlockAt", "readyAt", "offBlockAt", "source", "id");
 
     private final JdbcClient jdbc;
 
@@ -84,6 +96,10 @@ public class LogTexts {
                     String kind = ID_FIELDS.get(String.valueOf(k));
                     if (kind != null && val instanceof Number n) {
                         ids.computeIfAbsent(kind, x -> new LinkedHashSet<>()).add(n.longValue());
+                    }
+                    if (kind != null && val instanceof java.util.Collection<?> list) {
+                        list.stream().filter(Number.class::isInstance).map(x -> ((Number) x).longValue())
+                                .forEach(id -> ids.computeIfAbsent(kind, x -> new LinkedHashSet<>()).add(id));
                     }
                 });
             }
@@ -111,6 +127,24 @@ public class LogTexts {
             }
             return null;
         }
+    }
+
+    /** Для изменения записи оставляет в «Было» и «Стало» только поля, которые поменялись. */
+    public static Object[] changedOnly(Object oldValue, Object newValue) {
+        if (!(oldValue instanceof Map<?, ?> o) || !(newValue instanceof Map<?, ?> n)) {
+            return new Object[] {oldValue, newValue};
+        }
+        Map<Object, Object> before = new LinkedHashMap<>();
+        Map<Object, Object> after = new LinkedHashMap<>();
+        n.forEach((k, v) -> {
+            if (!java.util.Objects.equals(o.get(k), v)) {
+                after.put(k, v);
+                if (o.containsKey(k)) {
+                    before.put(k, o.get(k));
+                }
+            }
+        });
+        return after.isEmpty() ? new Object[] {oldValue, newValue} : new Object[] {before, after};
     }
 
     /** {"status": "problem", "comment": "Треснул шланг"} → «проблема: Треснул шланг». */
@@ -165,6 +199,15 @@ public class LogTexts {
     }
 
     private static String show(String field, Object value, Names names) {
+        if (value instanceof java.util.Collection<?> list) {
+            return list.isEmpty() ? "—" : String.join(", ", list.stream().map(v -> show(field, v, names)).toList());
+        }
+        if (value instanceof Boolean b) {
+            return b ? "да" : "нет";
+        }
+        if (field.equals("kind")) {
+            return KINDS.getOrDefault(String.valueOf(value), String.valueOf(value));
+        }
         String name = names.of(field, value);
         if (name != null) {
             return name;
