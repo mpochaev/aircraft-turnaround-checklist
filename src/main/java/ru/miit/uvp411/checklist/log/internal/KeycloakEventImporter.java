@@ -79,7 +79,9 @@ class KeycloakEventImporter {
         List<Map<String, Object>> events = http.get()
                 .uri(u -> u.path("/admin/realms/{realm}/events")
                         .queryParam("type", "LOGIN", "LOGIN_ERROR", "LOGOUT")
-                        .queryParam("dateFrom", after.toLocalDate().toString())
+                        // Keycloak считает dateFrom в UTC: берём день раньше, лишнее отсекает toRecords по времени.
+                        // Иначе после полуночи по Москве события до 03:00 не приходят и теряются
+                        .queryParam("dateFrom", after.toLocalDate().minusDays(1).toString())
                         .queryParam("max", 1000)
                         .build(realm))
                 .header("Authorization", "Bearer " + token())
