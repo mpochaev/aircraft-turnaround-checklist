@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ru.miit.uvp411.checklist.ops.internal.OperationService;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundQueries;
+import ru.miit.uvp411.checklist.ops.internal.TurnaroundPatchRequest;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundRequest;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundService;
 import ru.miit.uvp411.checklist.shared.error.ApiError;
@@ -63,6 +65,7 @@ class TurnaroundController {
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) Integer airlineId,
             @RequestParam(required = false) Integer aircraftId,
+            @RequestParam(required = false) Integer aircraftTypeId,
             @RequestParam(required = false) String flightNumber,
             @RequestParam(required = false) String standFrom,
             @RequestParam(required = false) String standTo,
@@ -73,8 +76,9 @@ class TurnaroundController {
         validateStatuses(status);
         validatePositive("airlineId", airlineId);
         validatePositive("aircraftId", aircraftId);
-        if (flightNumber != null && flightNumber.isBlank()) {
-            throw ApiException.validation("flightNumber", flightNumber, "Номер рейса не может быть пустым");
+        validatePositive("aircraftTypeId", aircraftTypeId);
+        if (flightNumber != null && !flightNumber.matches("\\d{1,4}")) {
+            throw ApiException.validation("flightNumber", flightNumber, "Номер рейса должен содержать от 1 до 4 цифр");
         }
         if (standFrom != null && standTo != null && standTo.compareTo(standFrom) < 0) {
             throw ApiException.validation("standTo", standTo, "Конец диапазона стоянок раньше начала");
@@ -84,15 +88,29 @@ class TurnaroundController {
         String onlyTechnician = user.can("turnarounds.read_all") ? null : user.login();
         Paging paging = Paging.of(page, size);
         TurnaroundQueries.Page result = queries.find(new TurnaroundQueries.Filter(
-                period[0], period[1], status, airlineId, aircraftId, flightNumber, standFrom, standTo,
+                period[0], period[1], status, airlineId, aircraftId, aircraftTypeId,
+                flightNumber, standFrom, standTo,
                 onlyIssues, onlyTechnician), paging);
-        return Map.of("items", result.items(), "total", result.total());
+        return Map.of("items", result.items().stream().map(item -> withOperationActions(item, user)).toList(),
+                "total", result.total(), "summary", result.summary());
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('turnarounds.create')")
     ResponseEntity<Map<String, Object>> create(@Valid @RequestBody TurnaroundRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(turnaroundService.create(request));
+    }
+
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('turnarounds.manage', 'turnarounds.service')")
+    Map<String, Object> update(@PathVariable long id, @RequestBody TurnaroundPatchRequest request) {
+        if (id <= 0) {
+            throw ApiException.validation("id", id, "Идентификатор должен быть положительным");
+        }
+        turnaroundService.update(id, request);
+        CurrentUser user = CurrentUser.get();
+        Map<String, Object> row = queries.row(id).orElseThrow(() -> ApiException.notFound("Оборот"));
+        return withOperationActions(row, user);
     }
 
     @GetMapping("/{id}")
@@ -108,6 +126,30 @@ class TurnaroundController {
                         (String) t.get("technicianLogin"), user))
                 .toList());
         return body;
+    }
+
+    private Map<String, Object> withOperationActions(Map<String, Object> source, CurrentUser user) {
+        Map<String, Object> row = new LinkedHashMap<>(source);
+        String status = (String) row.get("status");
+        String technicianLogin = (String) row.remove("technicianLogin");
+        Object rawOperations = row.get("operations");
+        if (!(rawOperations instanceof List<?> operations)) {
+            throw new IllegalStateException("Запрос оборота вернул operations не в виде списка");
+        }
+        row.put("operations", operations.stream().map(operation -> {
+            if (!(operation instanceof Map<?, ?> values)) {
+                throw new IllegalStateException("Запрос оборота вернул операцию не в виде объекта");
+            }
+            Map<String, Object> fields = new LinkedHashMap<>();
+            values.forEach((key, value) -> {
+                if (!(key instanceof String name)) {
+                    throw new IllegalStateException("Запрос оборота вернул поле операции без строкового имени");
+                }
+                fields.put(name, value);
+            });
+            return operationService.withAllowedActions(fields, status, technicianLogin, user);
+        }).toList());
+        return row;
     }
 
     private static LocalDate[] period(LocalDate dateFrom, LocalDate dateTo, LocalDate date) {

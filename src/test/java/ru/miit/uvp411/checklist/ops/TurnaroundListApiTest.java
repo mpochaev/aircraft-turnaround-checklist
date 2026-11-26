@@ -49,7 +49,15 @@ class TurnaroundListApiTest extends IntegrationTest {
                         .param("size", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.total", is(1)));
+                .andExpect(jsonPath("$.total", is(1)))
+                .andExpect(jsonPath("$.items[0].arrFlight.code").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].depFlight.route").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].aircraft.tailNumber").isNotEmpty())
+                .andExpect(jsonPath("$.items[0].progress.done").isNumber())
+                .andExpect(jsonPath("$.items[0].operations[0].lagMin").isNumber())
+                .andExpect(jsonPath("$.items[0].operations[0].allowedActions").isArray())
+                .andExpect(jsonPath("$.summary.problems", is(1)))
+                .andExpect(jsonPath("$.summary.delayed", is(0)));
 
         mvc.perform(get("/api/v1/turnarounds")
                         .param("dateFrom", arrivalAt.toLocalDate().toString())
@@ -64,6 +72,39 @@ class TurnaroundListApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.total", is(2)));
 
         org.assertj.core.api.Assertions.assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    void onlyIssuesUsesProblemsAndObservedOperationLagNotForecastRisk() throws Exception {
+        LocalDateTime arrivalAt = LocalDateTime.now().withSecond(0).withNano(0)
+                .plusDays(2).withHour(10);
+        long forecastRisk = data.turnaround("RA-73725", "planned", arrivalAt, arrivalAt.plusMinutes(35),
+                null, null, null);
+        data.operation(forecastRisk, "DEICE", "not_started",
+                arrivalAt.plusMinutes(40), arrivalAt.plusMinutes(55), null, null);
+
+        LocalDateTime laterArrival = arrivalAt.plusHours(1);
+        long actualLag = data.turnaround("RA-89041", "planned", laterArrival, laterArrival.plusMinutes(90),
+                null, null, null);
+        LocalDateTime now = LocalDateTime.now().withSecond(0).withNano(0);
+        data.operation(actualLag, "DEICE", "in_progress",
+                now.minusMinutes(40), now.minusMinutes(20), null, null);
+
+        mvc.perform(get("/api/v1/turnarounds").param("date", arrivalAt.toLocalDate().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total", is(2)))
+                .andExpect(jsonPath("$.items[0].id", is((int) forecastRisk)))
+                .andExpect(jsonPath("$.items[0].atRisk", is(true)));
+
+        mvc.perform(get("/api/v1/turnarounds")
+                        .param("date", arrivalAt.toLocalDate().toString())
+                        .param("onlyIssues", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].id", is((int) actualLag)))
+                .andExpect(jsonPath("$.items[0].operations[0].lagMin", greaterThanOrEqualTo(20)))
+                .andExpect(jsonPath("$.summary.problems", is(0)))
+                .andExpect(jsonPath("$.summary.delayed", is(1)));
     }
 
     @Test

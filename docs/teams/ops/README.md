@@ -39,10 +39,10 @@
 |---|---|---|---|
 | `GET /flights` | готово: date, airlineId, number, arrAirportId, depAirportId, free | 7.1 | 21 |
 | `POST /flights` | готово: уникальность по шести полям ключа и журнал `flight_created` | 7.2 | 21, 22 |
-| `GET /turnarounds` | фильтры по периоду, статусам, авиакомпании, ВС, рейсу, диапазону стоянок и проблемам; пагинация | 7.3 | 43, 44 |
+| `GET /turnarounds` | вложенные рейсы/ВС/техник и операции, `progress`, `atRisk`, `summary`; фильтры и пагинация | 7.3 | 43, 44 |
 | `POST /turnarounds` | нормативы через `RefApi.activeNorms`, активность через `RefApi.isActive`, план по зависимостям | 7.4 | 23–26 |
 | `GET /turnarounds/{id}` | операции с `executor`, `waitsFor`, `elapsedMin`, `delayMin` и `allowedActions` | 7.5 | |
-| `PATCH /turnarounds/{id}` | переходы по диаграмме состояний оборота (ЧТЗ, рисунок А.2) | 7.6 | 27, 35–38 |
+| `PATCH /turnarounds/{id}` | отмена с обязательной причиной и замена активного техника; обе операции журналируются | 7.6 | |
 | `PATCH /operations/{id}` | переходы по рисунку А.3 ЧТЗ; ошибки `PREDECESSORS_NOT_DONE`, `DELAY_CODE_REQUIRED`, `MANDATORY_OPERATION`, `COMMENT_REQUIRED` | 7.7 | 28–33, 39–42 |
 
 ### Контракт рейса и поиска
@@ -72,6 +72,12 @@
 авиакомпания, номер, литера, дата и два аэропорта. Запись `flight_created` содержит `entity=flight`,
 `entityId` нового рейса и переданные значения в `newValue`.
 
+`GET /turnarounds` возвращает `{items, total, summary}`. Строка содержит вложенные `arrFlight`,
+`depFlight`, `aircraft`, `technician`, `progress` и `operations`; операции включают фактические
+метрики, код задержки, исполнителя, комментарий и `allowedActions`. `onlyIssues=true` отбирает
+только обороты с проблемой или фактическим отставанием операции, а `summary` считает проблемы
+и отставания по всему отфильтрованному набору, не только текущей странице.
+
 Экраны: сценарии 34 (риск задержки), 45 (подсказка), 46 (автообновление раз в 15 секунд). Плановое время проверяйте на контрольных примерах ПМИ (таблица 6).
 
 ## План по неделям
@@ -90,7 +96,8 @@
 ## Что вы даёте другим
 
 - Представления оборотов для журнала и показателей. Представление для `GET /metrics` пишут «Данные», вы проверяете его как владельцы схемы `ops`.
-- Фильтры `GET /turnarounds` для экрана «История» («Данные»): `status=closed,cancelled`, `dateFrom`, `dateTo`, `aircraftTypeId`, `aircraftId`, `flightNumber`, `page`, `size` (спецификация 7.3). Экран уже ждёт их и до этого показывает пометку.
+- Фильтры `GET /turnarounds` для экрана «История» («Данные»): `status=closed,cancelled`, `dateFrom`, `dateTo`, `aircraftTypeId`, `aircraftId`, `flightNumber`, `page`, `size` (спецификация 7.3); экран использует вложенный контракт списка.
+- Кириллу: SQL индекса `CREATE INDEX flight_date_std_idx ON ops.flight (flight_date, std);`. Он уже находится в миграции `V202611111200__ops_flight_index.sql`.
 - Проверить миграцию `V202611051010` с уникальностью оборота (её написали «Данные» по замечанию преподавателя). Нарушение индексов `turnaround_arr_flight_uq` и `turnaround_dep_flight_uq` в `POST /turnarounds` превращается в 409 `FLIGHT_ALREADY_USED`, нарушение `turnaround_aircraft_busy_uq` и `turnaround_stand_busy_uq` при постановке ВС в 409 `AIRCRAFT_BUSY` (спецификация 7.4).
 - Проверить представления `ops.v_object_title`, `ops.v_turnaround_result`, `ops.v_operation_result` из миграции `V202610281200`: их написали «Данные» для журнала и показателей.
 - Если меняете смысл полей `ops.turnaround` или `ops.operation_exec`, предупредите «Данных»: на этих полях считаются показатели.
