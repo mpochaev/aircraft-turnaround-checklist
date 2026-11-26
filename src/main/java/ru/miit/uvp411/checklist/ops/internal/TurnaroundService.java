@@ -15,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.miit.uvp411.checklist.ops.PlanCalculator;
 import ru.miit.uvp411.checklist.ops.PlanCalculator.Norm;
 import ru.miit.uvp411.checklist.ops.PlanCalculator.PlannedOperation;
+import ru.miit.uvp411.checklist.auth.AuthApi;
 import ru.miit.uvp411.checklist.ref.RefApi;
 import ru.miit.uvp411.checklist.shared.error.ApiError;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
+import ru.miit.uvp411.checklist.shared.security.CurrentUser;
 
 @Service
 public class TurnaroundService {
@@ -26,13 +28,15 @@ public class TurnaroundService {
     private final RefApi refApi;
     private final PlanCalculator planCalculator;
     private final OpsAudit audit;
+    private final AuthApi authApi;
 
     public TurnaroundService(TurnaroundQueries queries, RefApi refApi,
-                             PlanCalculator planCalculator, OpsAudit audit) {
+                             PlanCalculator planCalculator, OpsAudit audit, AuthApi authApi) {
         this.queries = queries;
         this.refApi = refApi;
         this.planCalculator = planCalculator;
         this.audit = audit;
+        this.authApi = authApi;
     }
 
     @Transactional
@@ -99,6 +103,67 @@ public class TurnaroundService {
         return result;
     }
 
+    @Transactional
+    public void update(long id, TurnaroundPatchRequest request) {
+        if (request == null) {
+            throw unprocessable("VALIDATION_ERROR", "Тело запроса обязательно", "status", "technicianId");
+        }
+        CurrentUser user = CurrentUser.get();
+        if ((request.status() != null || request.technicianId() != null)
+                && !user.can("turnarounds.manage")) {
+            throw ApiException.forbidden();
+        }
+        if (request.status() == null && request.technicianId() == null) {
+            throw unprocessable("VALIDATION_ERROR", "Укажите status или technicianId", "status", "technicianId");
+        }
+        if (request.status() != null && !"cancelled".equals(request.status())) {
+            throw new ApiException(HttpStatus.CONFLICT, OpsErrors.INVALID_TRANSITION,
+                    "Для этого запроса допустима только отмена оборота");
+        }
+        if (request.status() == null && request.cancelReason() != null) {
+            throw unprocessable("VALIDATION_ERROR", "Причина отмены допустима только при отмене", "cancelReason");
+        }
+        if (request.status() != null
+                && (request.cancelReason() == null || request.cancelReason().isBlank()
+                || request.cancelReason().codePointCount(0, request.cancelReason().length()) > 300)) {
+            throw unprocessable("VALIDATION_ERROR", "Укажите причину отмены длиной от 1 до 300 символов",
+                    "cancelReason");
+        }
+        if (request.technicianId() != null && request.technicianId() <= 0) {
+            throw unprocessable("VALIDATION_ERROR", "Идентификатор техника должен быть положительным", "technicianId");
+        }
+
+        TurnaroundQueries.LockedTurnaround turnaround = queries.lockById(id)
+                .orElseThrow(() -> ApiException.notFound("Оборот"));
+        boolean cancelling = "cancelled".equals(request.status());
+        if (cancelling && !"planned".equals(turnaround.status())) {
+            throw invalidTransition("Отменить можно только запланированный оборот");
+        }
+        if (request.technicianId() != null
+                && ("closed".equals(turnaround.status()) || "cancelled".equals(turnaround.status()))) {
+            throw invalidTransition("Нельзя менять техника после закрытия или отмены оборота");
+        }
+
+        Integer technicianId = request.technicianId();
+        if (technicianId != null && technicianId != turnaround.technicianId()) {
+            requireTechnician(technicianId);
+            queries.updateTechnician(id, technicianId);
+            audit.turnaround("technician_changed", id,
+                    Map.of("technicianId", turnaround.technicianId()),
+                    Map.of("technicianId", technicianId));
+        }
+        if (cancelling) {
+            queries.cancel(id, request.cancelReason());
+            audit.turnaround("turnaround_cancelled", id,
+                    Map.of("status", turnaround.status()),
+                    Map.of("status", "cancelled", "cancelReason", request.cancelReason()));
+        }
+    }
+
+    private static ApiException invalidTransition(String message) {
+        return new ApiException(HttpStatus.CONFLICT, OpsErrors.INVALID_TRANSITION, message);
+    }
+
     private void requireActive(String dictionary, long id, String field) {
         if (!refApi.isActive(dictionary, id)) {
             throw inactiveReference(field, id);
@@ -107,14 +172,17 @@ public class TurnaroundService {
 
     private void requireTechnician(int technicianId) {
         if (!queries.technicianActive(technicianId).orElse(false)
-                || !queries.technicianHasService(technicianId)) {
+                || !authApi.hasPermission(technicianId, "turnarounds.service")) {
             throw inactiveReference("technicianId", technicianId);
         }
     }
 
     private static Norm toNorm(Map<String, Object> values) {
         Object rawAfter = values.get("after");
-        List<String> after = rawAfter == null || rawAfter.toString().isBlank()
+        // RefApi отдаёт предшественников списком кодов; строку через запятую тоже понимаем
+        List<String> after = rawAfter instanceof java.util.Collection<?> c
+                ? c.stream().map(String::valueOf).toList()
+                : rawAfter == null || rawAfter.toString().isBlank()
                 ? List.of()
                 : List.of(rawAfter.toString().split("\\s*,\\s*"));
         return new Norm(

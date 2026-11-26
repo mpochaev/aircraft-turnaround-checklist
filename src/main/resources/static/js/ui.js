@@ -64,7 +64,12 @@ export function clearFieldErrors(form) {
 //   await refSelect(form.aircraftTypeId, 'aircraft-types', { label: (r) => r.code, empty: 'Все' });
 // empty: текст пустого пункта или null, если пустой пункт не нужен.
 export async function refSelect(select, dictionary, { label = (r) => r.name ?? r.code, empty = 'Все', selected = '' } = {}) {
-    const { items } = await api.get(`/ref/${dictionary}`, { isActive: 'true' });
+    const items = [];
+    for (let page = 1; ; page++) {
+        const data = await api.get(`/ref/${dictionary}`, { isActive: 'true', page, size: 100 });
+        items.push(...data.items);
+        if (items.length >= data.total || !data.items.length) break;
+    }
     select.innerHTML = (empty !== null ? `<option value="">${escapeHtml(empty)}</option>` : '')
         + items.map((r) => `<option value="${r.id}">${escapeHtml(label(r))}</option>`).join('');
     select.value = String(selected);

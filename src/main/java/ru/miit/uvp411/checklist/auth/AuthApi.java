@@ -12,6 +12,13 @@ public interface AuthApi {
     /** ФИО и активность пользователя по логину, например для назначения техника на оборот. */
     Optional<UserInfo> findUser(String login);
 
+    /**
+     * Есть ли у пользователя право, например turnarounds.service: можно ли назначить его техником оборота.
+     * Роли пользователя хранит Keycloak (ADR-0002), права ролей лежат в auth.role_permission.
+     * В режиме dev Keycloak нет, поэтому проверяется только, что пользователь активен.
+     */
+    boolean hasPermission(int userId, String permission);
+
     record UserInfo(int id, String login, String lastName, String firstName, String middleName, boolean active) {
 
         public String shortName() {

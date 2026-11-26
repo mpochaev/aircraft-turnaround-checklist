@@ -93,7 +93,6 @@ RESERVED_TAILS = {"RA-73725", "RA-89041"}
 RESERVED_STANDS = {"124"}
 RESERVED_NUMBERS = {"1001", "1002", "1416", "1417"}
 # bcrypt-хеш пароля Demo-2026 (посчитан один раз, чтобы не зависеть от расширения pgcrypto)
-DEMO_HASH = "$2b$10$EERvfJFdeUifetdXgLBivebLHYMmYiJOEB8U2cAHGPeGwQD9RusCy"
 
 # ---------------------------------------------------------------- люди
 M_LAST = ["Смирнов", "Попов", "Васильев", "Петров", "Соколов", "Михайлов", "Новиков", "Фёдоров", "Морозов",
@@ -577,11 +576,8 @@ def main():
     w("INSERT INTO ref.aircraft (tail_number, aircraft_type_id, airline_id)\nSELECT v.tail, t.id, l.id FROM (VALUES")
     w(next(values([f for f in fleet if f[0] not in ("RA-73711", "RA-73110")], 999)))
     w(") AS v (tail, type_code, airline_code)\nJOIN ref.aircraft_type t ON t.code = v.type_code\nJOIN ref.airline l ON l.iata_code = v.airline_code;\n")
-    w("INSERT INTO auth.app_user (login, password_hash, last_name, first_name, middle_name, must_change_password) VALUES")
-    w(",\n".join("    (%s, %s, %s, %s, %s, false)" % (q(u[0]), q(DEMO_HASH), q(u[1]), q(u[2]), q(u[3])) for u in users) + ";\n")
-    w("INSERT INTO auth.user_role (user_id, role_id)\nSELECT u.id, r.id FROM (VALUES")
-    w(next(values([(u[0], u[4]) for u in users], 999)))
-    w(") AS v (login, role_code)\nJOIN auth.app_user u ON u.login = v.login\nJOIN auth.role r ON r.code = v.role_code;\n")
+    w("INSERT INTO auth.app_user (login, last_name, first_name, middle_name) VALUES")
+    w(",\n".join("    (%s, %s, %s, %s)" % (q(u[0]), q(u[1]), q(u[2]), q(u[3])) for u in users) + "\nON CONFLICT (login) DO UPDATE SET last_name = excluded.last_name, first_name = excluded.first_name, middle_name = excluded.middle_name;\n")
     for chunk in values([(f["id"], f["airline"], f["num"], f["date"], f["dep"], f["arr"], f["std"], f["sta"], f["atd"], f["ata"]) for f in flights]):
         w("INSERT INTO ops.flight (id, airline_id, flight_number, flight_date, dep_airport_id, arr_airport_id, std, sta, atd, ata)")
         w("SELECT v.id, al.id, v.num, v.fdate::date, d.id, a.id, v.std::timestamp, v.sta::timestamp, v.atd::timestamp, v.ata::timestamp FROM (VALUES")

@@ -42,6 +42,12 @@ export function logout() {
     }
 }
 
+export function accountManagement() {
+    if (keycloak) {
+        keycloak.accountManagement();
+    }
+}
+
 export function login() {
     if (keycloak) {
         keycloak.login();

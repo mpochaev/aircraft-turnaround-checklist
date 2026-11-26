@@ -14,64 +14,124 @@
         <h1>Обороты</h1>
         <div class="actions"><a class="btn" href="/supervisor/turnaround-new.html">Создать оборот</a></div>
     </div>
-    <div class="toolbar">
-        <label>Дата <input type="date" class="input" id="date"></label>
-        <label><input type="checkbox" id="onlyLate"> только с риском задержки или проблемой</label>
+    <form class="toolbar" id="filters">
+        <label>С <input type="date" class="input" name="dateFrom" required></label>
+        <label>по <input type="date" class="input" name="dateTo" required></label>
+        <label>Статус
+            <select class="select" name="status">
+                <option value="">Все</option><option value="planned">Запланирован</option>
+                <option value="in_service">Обслуживание</option><option value="ready">Готов</option>
+                <option value="closed">Закрыт</option><option value="cancelled">Отменён</option>
+            </select>
+        </label>
+        <label>Авиакомпания <select class="select" name="airlineId"><option value="">Все</option></select></label>
+        <label>Тип ВС <select class="select" name="aircraftTypeId"><option value="">Все</option></select></label>
+        <label>Борт <select class="select" name="aircraftId"><option value="">Все</option></select></label>
+        <label>Рейс <input class="input" name="flightNumber" inputmode="numeric" pattern="[0-9]{1,4}" size="6"></label>
+        <label>Стоянка от <input class="input" name="standFrom" size="6"></label>
+        <label>до <input class="input" name="standTo" size="6"></label>
+        <label><input type="checkbox" name="onlyIssues"> отставание или проблема</label>
+        <button class="btn btn-primary">Показать</button>
         <span class="muted small" id="updated"></span>
-    </div>
+    </form>
     <div class="table-wrap">
         <table class="table">
-            <thead>
-            <tr>
-                <th>Оборот</th><th>Маршрут</th><th>Борт / тип</th><th>Стоянка</th><th>Техник</th>
-                <th>STA</th><th>STD</th><th>Постановка</th><th>Прогресс</th><th>Статус</th>
-            </tr>
-            </thead>
+            <thead><tr id="columns"></tr></thead>
             <tbody id="rows"></tbody>
         </table>
     </div>
-    <p class="wip">Столбцы по каждой операции, окно ячейки («Решено», «Исправить отметку», код задержки) и подтверждение
-        готовности делает команда «Бизнес-логика»: спецификация API, разделы 7.3, 7.6, 7.7 и 10.5.</p>
+    <div id="pager"></div>
 </main>
 <script type="module">
     import { startPage, showError, every } from '/js/layout.js';
     import { api } from '/js/api.js';
-    import { time, today, TURNAROUND_STATUS, escapeHtml } from '/js/format.js';
+    import { time, today, TURNAROUND_STATUS, OPERATION_STATUS, escapeHtml } from '/js/format.js';
+    import { refSelect, pager } from '/js/ui.js';
 
     await startPage({ active: 'turnarounds' });
-    const dateInput = document.getElementById('date');
-    const onlyLate = document.getElementById('onlyLate');
-    dateInput.value = today();
+    const form = document.getElementById('filters');
+    const PAGE_SIZE = 50;
+    form.dateFrom.value = today();
+    form.dateTo.value = today();
+    try {
+        await Promise.all([
+            refSelect(form.airlineId, 'airlines', { label: (r) => `${r.iataCode} — ${r.name}` }),
+            refSelect(form.aircraftTypeId, 'aircraft-types', { label: (r) => r.code }),
+            refSelect(form.aircraftId, 'aircraft', { label: (r) => r.tailNumber }),
+        ]);
+    } catch (e) {
+        showError(document.getElementById('page'), e);
+    }
 
-    async function load(background) {
+    async function load(background, pageNo = 1) {
         try {
-            const data = await api.get('/turnarounds', { date: dateInput.value }, { background });
-            render(data.items);
+            const data = await api.get('/turnarounds', {
+                dateFrom: form.dateFrom.value,
+                dateTo: form.dateTo.value,
+                status: form.status.value,
+                airlineId: form.airlineId.value,
+                aircraftTypeId: form.aircraftTypeId.value,
+                aircraftId: form.aircraftId.value,
+                flightNumber: form.flightNumber.value.trim(),
+                standFrom: form.standFrom.value.trim(),
+                standTo: form.standTo.value.trim(),
+                onlyIssues: form.onlyIssues.checked,
+                page: pageNo,
+                size: PAGE_SIZE,
+            }, { background });
+            render(data);
+            pager(document.getElementById('pager'), {
+                page: pageNo, size: PAGE_SIZE, total: data.total, onPage: (p) => load(false, p),
+            });
             document.getElementById('updated').textContent = `обновлено ${new Date().toLocaleTimeString('ru-RU').slice(0, 5)}`;
         } catch (e) {
             showError(document.getElementById('page'), e);
         }
     }
 
-    function render(items) {
-        const problems = items.reduce((s, t) => s + (t.problems || 0), 0);
-        document.getElementById('header-counters').innerHTML = `Проблемы <span class="counter">${problems}</span>`;
-        const shown = onlyLate.checked ? items.filter((t) => t.delayRisk || t.problems > 0) : items;
-        document.getElementById('rows').innerHTML = shown.length ? shown.map((t) => `
-            <tr class="clickable" data-id="${t.id}">
-                <td class="nowrap">${escapeHtml(t.airline)} ${escapeHtml(t.arrNumber)} / ${escapeHtml(t.depNumber)}</td>
-                <td class="nowrap">${escapeHtml(t.arrFrom)} → ${escapeHtml(t.depTo)}</td>
-                <td class="nowrap">${escapeHtml(t.aircraft)} ${escapeHtml(t.aircraftType)}</td>
-                <td class="center">${escapeHtml(t.stand)}</td>
-                <td class="nowrap">${escapeHtml(t.technician)}</td>
-                <td class="center">${time(t.sta)}</td>
-                <td class="center">${time(t.std)}</td>
-                <td class="center">${time(t.onBlockAt) || '—'}</td>
-                <td class="center">${t.mandatoryDone} / ${t.mandatoryTotal}</td>
-                <td class="${t.problems > 0 ? 'st-problem' : ''}">
-                    ${TURNAROUND_STATUS[t.status]}${t.problems > 0 ? '<br>! Проблема' : ''}${t.delayRisk && ['planned', 'in_service'].includes(t.status) ? '<br><b>риск задержки</b>' : ''}
-                </td>
-            </tr>`).join('') : '<tr><td colspan="10" class="center muted">Оборотов нет</td></tr>';
+    function render(data) {
+        const items = data.items;
+        const summary = data.summary;
+        document.getElementById('header-counters').innerHTML =
+            `Проблемы <span class="counter">${summary.problems}</span> · отстают <span class="counter">${summary.delayed}</span>`;
+        const operations = [...new Map(items.flatMap((t) => t.operations)
+            .map((op) => [op.operationCode, op])).values()].sort((a, b) => a.seqNo - b.seqNo);
+        document.getElementById('columns').innerHTML = `
+            <th>Оборот</th><th>Маршруты</th><th>Борт / тип</th><th>Стоянка</th><th>Техник</th>
+            <th>STA</th><th>STD</th><th>Постановка</th><th>Прогресс</th><th>Статус</th>
+            ${operations.map((op) => `<th>${escapeHtml(op.operationCode)}</th>`).join('')}`;
+        document.getElementById('rows').innerHTML = items.length ? items.map((t) => {
+            const cells = new Map(t.operations.map((op) => [op.operationCode, op]));
+            return `
+                <tr class="clickable" data-id="${t.id}">
+                    <td class="nowrap">${escapeHtml(t.arrFlight.code)} / ${escapeHtml(t.depFlight.code)}</td>
+                    <td class="nowrap">${escapeHtml(t.arrFlight.route)} → ${escapeHtml(t.depFlight.route)}</td>
+                    <td class="nowrap">${escapeHtml(t.aircraft.tailNumber)} ${escapeHtml(t.aircraft.typeCode)}</td>
+                    <td class="center">${escapeHtml(t.stand)}</td>
+                    <td class="nowrap">${escapeHtml(t.technician.shortName)}</td>
+                    <td class="center">${time(t.arrFlight.sta)}</td>
+                    <td class="center">${time(t.depFlight.std)}</td>
+                    <td class="center">${time(t.onBlockAt) || '—'}</td>
+                    <td class="center">${t.progress.done} / ${t.progress.total}</td>
+                    <td class="${t.problems > 0 ? 'st-problem' : ''}">
+                        ${TURNAROUND_STATUS[t.status]}${t.problems > 0 ? '<br>! Проблема' : ''}
+                        ${t.atRisk ? '<br><b>риск задержки</b>' : ''}
+                    </td>
+                    ${operations.map((column) => operationCell(cells.get(column.operationCode))).join('')}
+                </tr>`;
+        }).join('') : `<tr><td colspan="${10 + operations.length}" class="center muted">Оборотов нет</td></tr>`;
+    }
+
+    function operationCell(op) {
+        if (!op) return '<td class="center muted">—</td>';
+        const lag = Number(op.lagMin || 0);
+        const timingClass = lag > 10 ? 'st-late_critical' : lag > 0 ? 'st-late' : `st-${op.status}`;
+        const note = [op.executor?.shortName, op.delayCode?.code, op.comment].filter(Boolean).join(' · ');
+        return `<td class="center ${timingClass}"${note ? ` title="${escapeHtml(note)}"` : ''}>
+            ${escapeHtml(OPERATION_STATUS[op.status] || op.status)}
+            <br><small>план ${time(op.plannedStart)} · факт ${time(op.actualEnd) || '—'}${lag ? ` · +${lag} мин` : ''}</small>
+            <br><small>${Number(op.elapsedMin || 0)} мин${op.executor ? ` · ${escapeHtml(op.executor.shortName)}` : ''}${op.delayCode ? ` · ${escapeHtml(op.delayCode.code)}` : ''}</small>
+        </td>`;
     }
 
     document.getElementById('rows').addEventListener('click', (e) => {
@@ -80,8 +140,10 @@
             location.href = `/technician/checklist.html?id=${tr.dataset.id}`;
         }
     });
-    dateInput.addEventListener('change', () => load(false));
-    onlyLate.addEventListener('change', () => load(false));
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        load(false, 1);
+    });
     let first = true;
     every(15, () => { load(!first); first = false; });
 </script>

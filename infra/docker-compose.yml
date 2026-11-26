@@ -82,12 +82,17 @@ services:
       KEYCLOAK_JWKS: http://keycloak:8080/realms/checklist/protocol/openid-connect/certs
       KEYCLOAK_PUBLIC_URL: http://localhost:${KC_PORT:-8180}
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       TZ: Europe/Moscow
     ports:
       - "${APP_PORT:-8080}:8080"
     depends_on:
       db:
         condition: service_healthy
+      keycloak:
+        condition: service_started
 
 volumes:
   pgdata:

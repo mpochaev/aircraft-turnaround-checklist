@@ -14,7 +14,12 @@
     <div class="panel" style="max-width: 640px">
         <h2 style="margin-top: 0">Мои данные</h2>
         <table class="table" id="me"></table>
-        <p class="wip">Заявку на изменение ФИО и смену пароля делает команда «Авторизация» вместе с Keycloak: спецификация API 5.5, 5.6, 10.2.</p>
+        <div class="page-header">
+            <button class="btn" id="request-name">Заявить об изменении ФИО</button>
+            <button class="btn" id="change-password">Сменить пароль</button>
+            <button class="btn" id="reset-password">Запросить сброс пароля</button>
+        </div>
+        <p id="pending-requests" class="muted"></p>
     </div>
     <h2>Мои действия за смену</h2>
     <div class="table-wrap">
@@ -23,10 +28,21 @@
             <tbody id="rows"></tbody>
         </table>
     </div>
+    <dialog id="name-dialog">
+        <form id="name-form">
+            <h2>Заявка на изменение ФИО</h2>
+            <label class="field"><span>Фамилия (оставьте пустым без изменений)</span><input name="lastName" maxlength="50"></label>
+            <label class="field"><span>Имя</span><input name="firstName" maxlength="50"></label>
+            <label class="field"><span>Отчество</span><input name="middleName" maxlength="50"></label>
+            <label class="field"><span>Причина</span><textarea name="reason" required maxlength="300"></textarea></label>
+            <div class="page-header"><button class="btn" type="button" id="cancel-name">Отмена</button><button class="btn btn-primary">Отправить заявку</button></div>
+        </form>
+    </dialog>
 </main>
 <script type="module">
     import { startPage, showError } from '/js/layout.js';
     import { api } from '/js/api.js';
+    import { accountManagement } from '/js/auth.js';
     import { localIso, escapeHtml } from '/js/format.js';
     import { logRows } from '/js/journal.js';
 
@@ -37,6 +53,31 @@
         <tr><td>ФИО</td><td>${escapeHtml(fio)}</td></tr>
         <tr><td>Роли</td><td>${escapeHtml(me.roles.join(', '))}</td></tr>
         <tr><td>Права</td><td class="small">${escapeHtml(me.permissions.join(', '))}</td></tr>`;
+    const pending = document.getElementById('pending-requests');
+    pending.textContent = me.pendingRequests?.length
+        ? 'Открытые заявки: ' + me.pendingRequests.map(r => r.kind === 'personal_data' ? 'изменение ФИО' : 'сброс пароля').join(', ')
+        : 'Открытых заявок нет';
+    const nameDialog = document.getElementById('name-dialog');
+    document.getElementById('request-name').addEventListener('click', () => nameDialog.showModal());
+    document.getElementById('cancel-name').addEventListener('click', () => nameDialog.close());
+    document.getElementById('change-password').addEventListener('click', () => accountManagement());
+    document.getElementById('reset-password').addEventListener('click', async () => {
+        try {
+            await api.post('/auth/password-reset', { login: me.login, reason: 'Запрос пользователя из профиля' });
+            pending.textContent = 'Заявка на сброс пароля направлена супервайзеру';
+        } catch (e) { showError(document.getElementById('page'), e); }
+    });
+    document.getElementById('name-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = new FormData(e.currentTarget);
+        const body = { reason: form.get('reason') };
+        for (const field of ['lastName','firstName','middleName']) if (form.get(field).trim()) body[field] = form.get(field).trim();
+        try {
+            await api.post('/me/requests', body);
+            nameDialog.close();
+            pending.textContent = 'Заявка на изменение ФИО направлена супервайзеру';
+        } catch (err) { showError(document.getElementById('page'), err); }
+    });
     // Мои действия за смену (ФТ-42): за последние 12 часов, это наибольшая длина сессии по ЧТЗ.
     // Блок делает команда «Данные», записи отдаёт GET /log (спецификация 8.1, 10.2).
     try {

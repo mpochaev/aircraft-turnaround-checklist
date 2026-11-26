@@ -10,14 +10,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/**
- * Основа интеграционных тестов: приложение целиком и настоящий PostgreSQL 16 в Docker.
- * Схему создаёт Flyway теми же миграциями, что и на стенде. Нужен запущенный Docker.
- * <p>
- * Профиль dev: запрос идёт от sup01 (супервайзер), другого пользователя задают заголовки
- * X-Dev-User и X-Dev-Roles, как в Postman. База одна на все тесты, поэтому тест проверяет только
- * свои данные: свой оборот, свой период или свой вид действия.
- */
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("dev")

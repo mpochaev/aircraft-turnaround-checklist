@@ -1,6 +1,7 @@
 package ru.miit.uvp411.checklist.ops.internal;
 
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,8 +36,8 @@ public class OperationService {
             throw ApiException.forbidden();
         }
         OperationContext context = queries.lockById(id).orElseThrow(() -> ApiException.notFound("Операция"));
-        OperationAction action = OperationAction.resolve(context.operation().status(), request);
-        if (!action.permitted(user, context)) {
+        OperationAction action = OperationTransitions.resolve(context.operation().status(), request);
+        if (!action.permitted(user, context.turnaround().technicianLogin())) {
             throw ApiException.forbidden();
         }
         if (!"in_service".equals(context.turnaround().status())) {
@@ -49,6 +50,18 @@ public class OperationService {
                     "Обработчик действия ещё не подключён");
         }
         handler.handle(context, request);
-        return Map.of("operation", queries.operation(id), "turnaround", queries.turnaround(context.turnaround().id()));
+        Map<String, Object> turnaround = queries.turnaround(context.turnaround().id());
+        return Map.of("operation", withAllowedActions(queries.operation(id), (String) turnaround.get("status"),
+                context.turnaround().technicianLogin(), user), "turnaround", turnaround);
+    }
+
+    public Map<String, Object> withAllowedActions(Map<String, Object> operation, String turnaroundStatus,
+                                                  String technicianLogin, CurrentUser user) {
+        Map<String, Object> result = new LinkedHashMap<>(operation);
+        List<?> waitsFor = (List<?>) operation.get("waitsFor");
+        result.put("allowedActions", OperationTransitions.allowedActions((String) operation.get("status"),
+                Boolean.TRUE.equals(operation.get("isMandatory")), !waitsFor.isEmpty(),
+                turnaroundStatus, technicianLogin, user, handlers.keySet()));
+        return result;
     }
 }
