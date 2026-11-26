@@ -2,45 +2,42 @@ package ru.miit.uvp411.checklist.ops;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.IllegalTransactionStateException;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import ru.miit.uvp411.checklist.IntegrationTest;
-import ru.miit.uvp411.checklist.ops.internal.OperationAction;
-import ru.miit.uvp411.checklist.ops.internal.OperationActionHandler;
-import ru.miit.uvp411.checklist.ops.internal.OperationContext;
-import ru.miit.uvp411.checklist.ops.internal.OperationRequest;
 import ru.miit.uvp411.checklist.ops.internal.OpsAudit;
 
-/** Приёмка каркаса к 13.11. Тестовые обработчики не подключаются в рабочем приложении. */
-@Import(OperationRoutingApiTest.Handlers.class)
+/** Проверки запуска операции, журнала и подключения обработчиков к API. */
 class OperationRoutingApiTest extends IntegrationTest {
 
     @Autowired
-    TestStartHandler startHandler;
+    TransactionTemplate transaction;
 
     @Autowired
     OpsAudit audit;
 
     @Test
-    void loadsOperationTurnaroundAndDependenciesThenReturnsSavedDataAndJournal() throws Exception {
+    void startsOperationAfterCompletedPredecessorAndWritesJournal() throws Exception {
         Fixture fixture = operation("in_service", "not_started");
         LocalDateTime now = LocalDateTime.now().withNano(0);
         long predecessor = data.operation(fixture.turnaround(), "DEBOARD", "done",
@@ -57,26 +54,78 @@ class OperationRoutingApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.operation.actualEnd").isEmpty())
                 .andExpect(jsonPath("$.operation.executor.id", is(data.userId("tech07"))))
                 .andExpect(jsonPath("$.operation.waitsFor").isEmpty())
+                .andExpect(jsonPath("$.operation.allowedActions", contains("finish", "problem")))
                 .andExpect(jsonPath("$.turnaround.id", is((int) fixture.turnaround())))
                 .andExpect(jsonPath("$.turnaround.status", is("in_service")))
                 .andExpect(jsonPath("$.turnaround.progress.done", is(1)))
                 .andExpect(jsonPath("$.turnaround.progress.total", is(2)));
 
-        OperationContext context = startHandler.lastContext;
-        assertThat(context.operation().id()).isEqualTo(fixture.operation());
-        assertThat(context.operation().status()).isEqualTo("not_started");
-        assertThat(context.operation().normId()).isPositive();
-        assertThat(context.turnaround().technicianLogin()).isEqualTo("tech07");
-        assertThat(context.predecessors()).hasSize(1);
-        assertThat(context.predecessors().getFirst().id()).isEqualTo(predecessor);
-        assertThat(context.predecessors().getFirst().completed()).isTrue();
         Map<String, Object> entry = jdbc.sql("""
                         select login, turnaround_id, old_value ->> 'status' as before,
-                               new_value ->> 'status' as after, old_value ->> 'actualStart' as old_start
+                               new_value ->> 'status' as after, old_value ->> 'actualStart' as old_start,
+                               new_value ->> 'actualStart' as new_start, new_value ->> 'executorId' as executor
                         from log.action_log where entity = 'operation_exec' and entity_id = :id and action_type = 'op_start'
                         """).param("id", fixture.operation()).query().singleRow();
         assertThat(entry).containsEntry("login", "tech07").containsEntry("turnaround_id", fixture.turnaround())
-                .containsEntry("before", "not_started").containsEntry("after", "in_progress").containsEntry("old_start", null);
+                .containsEntry("before", "not_started").containsEntry("after", "in_progress").containsEntry("old_start", null)
+                .containsEntry("executor", String.valueOf(data.userId("tech07")));
+        assertThat(entry.get("new_start")).isNotNull();
+    }
+
+    @Test
+    void checklistAndStartAgreeAboutBlockingPredecessors() throws Exception {
+        Fixture fixture = operation("in_service", "not_started");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        long predecessor = data.operation(fixture.turnaround(), "DEICE", "not_started", now, now.plusMinutes(10), null, null);
+        jdbc.sql("insert into ops.exec_dependency (exec_id, prev_exec_id) values (:id, :prev)")
+                .param("id", fixture.operation()).param("prev", predecessor).update();
+
+        mvc.perform(get("/api/v1/turnarounds/{id}", fixture.turnaround())
+                        .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician"))
+                .andExpect(jsonPath("$.operations[0].waitsFor[0]", is((int) predecessor)))
+                .andExpect(jsonPath("$.operations[0].allowedActions").isEmpty());
+        mvc.perform(start(fixture.operation())).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code", is("PREDECESSORS_NOT_DONE")))
+                .andExpect(jsonPath("$.error.details[0].value", is((int) predecessor)));
+        assertUnchanged(fixture);
+
+        jdbc.sql("update ops.operation_exec set status = 'not_required' where id = :id").param("id", predecessor).update();
+        mvc.perform(get("/api/v1/turnarounds/{id}", fixture.turnaround())
+                        .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician"))
+                .andExpect(jsonPath("$.operations[0].waitsFor").isEmpty())
+                .andExpect(jsonPath("$.operations[0].allowedActions[0]", is("start")));
+        mvc.perform(start(fixture.operation())).andExpect(status().isOk());
+        mvc.perform(start(fixture.operation())).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error.code", is("INVALID_TRANSITION")));
+        assertThat(logCount(fixture.operation())).isEqualTo(1);
+    }
+
+    @Test
+    void independentOperationsStartWhileAnotherStartTransactionIsOpen() {
+        Fixture fixture = operation("in_service", "not_started");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        long independent = data.operation(fixture.turnaround(), "CLEAN", "not_started", now, now.plusMinutes(10), null, null);
+
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            transaction.executeWithoutResult(result -> {
+                try {
+                    mvc.perform(start(fixture.operation())).andExpect(status().isOk());
+                    worker.submit(() -> mvc.perform(start(independent)).andExpect(status().isOk()))
+                            .get(5, TimeUnit.SECONDS);
+                    assertThat(operationStatus(independent)).isEqualTo("in_progress");
+                } catch (Exception error) {
+                    throw new AssertionError("Независимая операция должна начаться до завершения первой транзакции", error);
+                }
+            });
+        }
+        assertThat(operationStatus(fixture.operation())).isEqualTo("in_progress");
+        assertThat(logCount(independent)).isEqualTo(1);
+    }
+
+    private static MockHttpServletRequestBuilder start(long id) {
+        return patch("/api/v1/operations/{id}", id)
+                .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"in_progress\"}");
     }
 
     @Test
@@ -119,16 +168,95 @@ class OperationRoutingApiTest extends IntegrationTest {
     }
 
     @Test
-    void supervisorHandlerCanBeConnectedWithoutChangingController() throws Exception {
+    void supervisorCanSkipOptionalOperationAndUnblockItsSuccessor() throws Exception {
         Fixture fixture = operation("in_service", "not_started");
         LocalDateTime now = LocalDateTime.now().withNano(0);
         long optional = data.operation(fixture.turnaround(), "DEICE", "not_started", now, now.plusMinutes(10), null, null);
+
+        jdbc.sql("insert into ops.exec_dependency (exec_id, prev_exec_id) values (:id, :prev)")
+                .param("id", fixture.operation()).param("prev", optional).update();
+        mvc.perform(technicianPatch(optional, "{\"status\":\"not_required\",\"comment\":\"Летние условия\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/v1/operations/{id}", optional).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"not_required\"}"))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code", is("COMMENT_REQUIRED")));
+        mvc.perform(patch("/api/v1/operations/{id}", fixture.operation()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"not_required\",\"comment\":\"Пропуск\"}"))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code", is("MANDATORY_OPERATION")));
+        assertUnchanged(fixture);
+        assertThat(logCount(optional)).isZero();
 
         mvc.perform(patch("/api/v1/operations/{id}", optional).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"not_required\",\"comment\":\"Летние условия\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.operation.status", is("not_required")))
                 .andExpect(jsonPath("$.operation.comment", is("Летние условия")));
-        assertThat(logCount(optional)).isEqualTo(1);
+        assertThat(logActions(optional)).containsExactly("op_not_required");
+        mvc.perform(start(fixture.operation())).andExpect(status().isOk());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"status\":\"problem\"}", "{\"status\":\"problem\",\"comment\":\"\"}",
+            "{\"status\":\"problem\",\"comment\":\"   \"}"})
+    void problemRequiresNonBlankComment(String body) throws Exception {
+        Fixture fixture = operation("in_service", "in_progress");
+        mvc.perform(technicianPatch(fixture.operation(), body))
+                .andExpect(status().isUnprocessableEntity()).andExpect(jsonPath("$.error.code", is("COMMENT_REQUIRED")));
+        assertThat(operationStatus(fixture.operation())).isEqualTo("in_progress");
+        assertThat(logCount(fixture.operation())).isZero();
+    }
+
+    @Test
+    void problemStoresCommentAndWritesAudit() throws Exception {
+        Fixture fixture = operation("in_service", "in_progress");
+        mvc.perform(technicianPatch(fixture.operation(), "{\"status\":\"problem\",\"comment\":\"Неисправность оборудования\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operation.status", is("problem")))
+                .andExpect(jsonPath("$.operation.comment", is("Неисправность оборудования")))
+                .andExpect(jsonPath("$.operation.actualEnd").isEmpty());
+        assertThat(logActions(fixture.operation())).containsExactly("op_problem");
+    }
+
+    @Test
+    void finishSavesTimeExecutorAndProgressWithoutRequiringDelayCodeWhenOnTime() throws Exception {
+        Fixture fixture = operation("in_service", "in_progress");
+        mvc.perform(technicianPatch(fixture.operation(), "{\"status\":\"done\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operation.status", is("done")))
+                .andExpect(jsonPath("$.operation.actualEnd").isNotEmpty())
+                .andExpect(jsonPath("$.operation.executor.id", is(data.userId("tech07"))))
+                .andExpect(jsonPath("$.turnaround.progress.done", is(1)));
+        assertThat(logActions(fixture.operation())).containsExactly("op_finish");
+    }
+
+    @Test
+    void lateFinishRequiresAnActiveDelayCodeAndRecordsBothEvents() throws Exception {
+        Fixture fixture = operation("in_service", "in_progress");
+        jdbc.sql("""
+                update ops.operation_exec
+                set planned_start = localtimestamp - interval '30 minutes',
+                    actual_start = localtimestamp - interval '30 minutes',
+                    planned_end = localtimestamp - interval '11 minutes'
+                where id = :id
+                """).param("id", fixture.operation()).update();
+        int codeId = jdbc.sql("select id from ref.delay_code where code = '36'").query(Integer.class).single();
+        int inactiveCode = jdbc.sql("""
+                insert into ref.delay_code (code, name, is_active) values ('99', 'Неактивный тестовый код', false) returning id
+                """).query(Integer.class).single();
+
+        mvc.perform(technicianPatch(fixture.operation(), "{\"status\":\"done\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error.code", is("DELAY_CODE_REQUIRED")));
+        for (int invalid : List.of(Integer.MAX_VALUE, inactiveCode)) {
+            mvc.perform(technicianPatch(fixture.operation(), "{\"status\":\"done\",\"delayCodeId\":" + invalid + "}"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code", is("VALIDATION_ERROR")))
+                    .andExpect(jsonPath("$.error.details[0].field", is("delayCodeId")));
+        }
+        assertThat(operationStatus(fixture.operation())).isEqualTo("in_progress");
+        assertThat(logCount(fixture.operation())).isZero();
+
+        mvc.perform(technicianPatch(fixture.operation(), "{\"status\":\"done\",\"delayCodeId\":" + codeId + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.operation.delayCode.id", is(codeId)));
+        assertThat(logActions(fixture.operation())).containsExactlyInAnyOrder("op_finish", "delay_code");
     }
 
     @ParameterizedTest
@@ -154,12 +282,11 @@ class OperationRoutingApiTest extends IntegrationTest {
 
     @Test
     void unregisteredActionDoesNotPretendToChangeData() throws Exception {
-        Fixture fixture = operation("in_service", "in_progress");
+        Fixture fixture = operation("in_service", "problem");
         mvc.perform(patch("/api/v1/operations/{id}", fixture.operation())
-                        .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician")
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"done\"}"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"in_progress\",\"comment\":\"Решено\"}"))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code", is("INVALID_TRANSITION")));
-        assertThat(operationStatus(fixture.operation())).isEqualTo("in_progress");
+        assertThat(operationStatus(fixture.operation())).isEqualTo("problem");
         assertThat(logCount(fixture.operation())).isZero();
     }
 
@@ -240,6 +367,17 @@ class OperationRoutingApiTest extends IntegrationTest {
                 .param("id", id).query(Long.class).single();
     }
 
+    private List<String> logActions(long id) {
+        return jdbc.sql("select action_type from log.action_log where entity = 'operation_exec' and entity_id = :id")
+                .param("id", id).query(String.class).list();
+    }
+
+    private static MockHttpServletRequestBuilder technicianPatch(long id, String body) {
+        return patch("/api/v1/operations/{id}", id)
+                .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician")
+                .contentType(MediaType.APPLICATION_JSON).content(body);
+    }
+
     private void assertUnchanged(Fixture fixture) {
         Map<String, Object> row = jdbc.sql("select status, actual_start, executor_id from ops.operation_exec where id = :id")
                 .param("id", fixture.operation()).query().singleRow();
@@ -250,62 +388,4 @@ class OperationRoutingApiTest extends IntegrationTest {
     private record Fixture(long turnaround, long operation) {
     }
 
-    @TestConfiguration(proxyBeanMethods = false)
-    static class Handlers {
-
-        @Bean
-        TestStartHandler testStartHandler(JdbcClient jdbc, OpsAudit audit) {
-            return new TestStartHandler(jdbc, audit);
-        }
-
-        @Bean
-        OperationActionHandler testNotRequiredHandler(JdbcClient jdbc, OpsAudit audit) {
-            return new OperationActionHandler() {
-                @Override
-                public OperationAction action() {
-                    return OperationAction.NOT_REQUIRED;
-                }
-
-                @Override
-                public void handle(OperationContext context, OperationRequest request) {
-                    jdbc.sql("update ops.operation_exec set status = 'not_required', comment = :comment where id = :id")
-                            .param("comment", request.comment()).param("id", context.operation().id()).update();
-                    audit.operation("op_not_required", context.operation().id(), context.turnaround().id(),
-                            Map.of("status", context.operation().status()), Map.of("status", "not_required"));
-                }
-            };
-        }
-    }
-
-    /** Минимальный тестовый плагин для проверки диспетчеризации и транзакции, не реализация действия к 20.11. */
-    static class TestStartHandler implements OperationActionHandler {
-
-        private final JdbcClient jdbc;
-        private final OpsAudit audit;
-        private OperationContext lastContext;
-
-        TestStartHandler(JdbcClient jdbc, OpsAudit audit) {
-            this.jdbc = jdbc;
-            this.audit = audit;
-        }
-
-        @Override
-        public OperationAction action() {
-            return OperationAction.START;
-        }
-
-        @Override
-        public void handle(OperationContext context, OperationRequest request) {
-            lastContext = context;
-            jdbc.sql("""
-                    update ops.operation_exec set status = 'in_progress', actual_start = localtimestamp,
-                           executor_id = :executor where id = :id
-                    """).param("executor", context.turnaround().technicianId()).param("id", context.operation().id()).update();
-            Map<String, Object> before = new LinkedHashMap<>();
-            before.put("status", context.operation().status());
-            before.put("actualStart", context.operation().actualStart());
-            audit.operation("op_start", context.operation().id(), context.turnaround().id(), before,
-                    Map.of("status", "in_progress"));
-        }
-    }
 }

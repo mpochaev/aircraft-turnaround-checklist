@@ -29,6 +29,8 @@ public class TestData {
                        ('tech12', '-', 'Смирнов', 'Олег', null, false)
                 on conflict (login) do nothing
                 """).update();
+        // тест может отключить пользователя; следующий тест получает их снова активными
+        jdbc.sql("update auth.app_user set is_active = true where login in ('sup01', 'tech07', 'tech12')").update();
         jdbc.sql("""
                 insert into auth.user_role (user_id, role_id)
                 select u.id, r.id from auth.app_user u

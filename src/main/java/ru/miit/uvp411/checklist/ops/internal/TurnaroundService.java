@@ -18,6 +18,7 @@ import ru.miit.uvp411.checklist.ops.PlanCalculator.PlannedOperation;
 import ru.miit.uvp411.checklist.ref.RefApi;
 import ru.miit.uvp411.checklist.shared.error.ApiError;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
+import ru.miit.uvp411.checklist.shared.security.CurrentUser;
 
 @Service
 public class TurnaroundService {
@@ -97,6 +98,67 @@ public class TurnaroundService {
                 .orElseThrow(() -> new IllegalStateException("Созданный оборот не найден")));
         result.put("operations", queries.operations(turnaroundId));
         return result;
+    }
+
+    @Transactional
+    public void update(long id, TurnaroundPatchRequest request) {
+        if (request == null) {
+            throw unprocessable("VALIDATION_ERROR", "Тело запроса обязательно", "status", "technicianId");
+        }
+        CurrentUser user = CurrentUser.get();
+        if ((request.status() != null || request.technicianId() != null)
+                && !user.can("turnarounds.manage")) {
+            throw ApiException.forbidden();
+        }
+        if (request.status() == null && request.technicianId() == null) {
+            throw unprocessable("VALIDATION_ERROR", "Укажите status или technicianId", "status", "technicianId");
+        }
+        if (request.status() != null && !"cancelled".equals(request.status())) {
+            throw new ApiException(HttpStatus.CONFLICT, OpsErrors.INVALID_TRANSITION,
+                    "Для этого запроса допустима только отмена оборота");
+        }
+        if (request.status() == null && request.cancelReason() != null) {
+            throw unprocessable("VALIDATION_ERROR", "Причина отмены допустима только при отмене", "cancelReason");
+        }
+        if (request.status() != null
+                && (request.cancelReason() == null || request.cancelReason().isBlank()
+                || request.cancelReason().codePointCount(0, request.cancelReason().length()) > 300)) {
+            throw unprocessable("VALIDATION_ERROR", "Укажите причину отмены длиной от 1 до 300 символов",
+                    "cancelReason");
+        }
+        if (request.technicianId() != null && request.technicianId() <= 0) {
+            throw unprocessable("VALIDATION_ERROR", "Идентификатор техника должен быть положительным", "technicianId");
+        }
+
+        TurnaroundQueries.LockedTurnaround turnaround = queries.lockById(id)
+                .orElseThrow(() -> ApiException.notFound("Оборот"));
+        boolean cancelling = "cancelled".equals(request.status());
+        if (cancelling && !"planned".equals(turnaround.status())) {
+            throw invalidTransition("Отменить можно только запланированный оборот");
+        }
+        if (request.technicianId() != null
+                && ("closed".equals(turnaround.status()) || "cancelled".equals(turnaround.status()))) {
+            throw invalidTransition("Нельзя менять техника после закрытия или отмены оборота");
+        }
+
+        Integer technicianId = request.technicianId();
+        if (technicianId != null && technicianId != turnaround.technicianId()) {
+            requireTechnician(technicianId);
+            queries.updateTechnician(id, technicianId);
+            audit.turnaround("technician_changed", id,
+                    Map.of("technicianId", turnaround.technicianId()),
+                    Map.of("technicianId", technicianId));
+        }
+        if (cancelling) {
+            queries.cancel(id, request.cancelReason());
+            audit.turnaround("turnaround_cancelled", id,
+                    Map.of("status", turnaround.status()),
+                    Map.of("status", "cancelled", "cancelReason", request.cancelReason()));
+        }
+    }
+
+    private static ApiException invalidTransition(String message) {
+        return new ApiException(HttpStatus.CONFLICT, OpsErrors.INVALID_TRANSITION, message);
     }
 
     private void requireActive(String dictionary, long id, String field) {

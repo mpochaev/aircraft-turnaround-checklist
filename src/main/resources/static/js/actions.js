@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api, ApiError } from './api.js';
 import { confirmDialog } from './ui.js';
 import { showError } from './layout.js';
 import { escapeHtml } from './format.js';
@@ -80,6 +80,31 @@ export const TURNAROUND_ACTIONS = {
     },
 };
 
+function enrichActionError(err) {
+    if (!(err instanceof ApiError)) {
+        return err;
+    }
+    if (err.code === 'INVALID_TRANSITION') {
+        err.message = err.message && err.message !== 'Ошибка 409'
+            ? err.message
+            : 'Нельзя сменить статус: переход не разрешён (INVALID_TRANSITION)';
+    } else if (err.code === 'MANDATORY_NOT_DONE') {
+        const ops = (err.details || [])
+            .map((d) => d.message || d.field)
+            .filter(Boolean)
+            .join(', ');
+        const base = 'Нельзя подтвердить готовность: не выполнены обязательные операции (MANDATORY_NOT_DONE)';
+        err.message = ops ? `${base}: ${ops}` : (err.message && !err.message.startsWith('Ошибка') ? err.message : base);
+    }
+    return err;
+}
+
+function showActionError(container, err) {
+    if (container) {
+        showError(container, enrichActionError(err));
+    }
+}
+
 export function renderActionButtons(actions, { primary = null, className = 'btn', attrs = '' } = {}) {
     return (actions || [])
         .map((code) => {
@@ -141,9 +166,7 @@ export async function runOperationAction({
         }
         return result;
     } catch (e) {
-        if (errorContainer) {
-            showError(errorContainer, e);
-        }
+        showActionError(errorContainer, e);
         throw e;
     }
 }
@@ -193,9 +216,7 @@ export async function runTurnaroundAction({
         }
         return result;
     } catch (e) {
-        if (errorContainer) {
-            showError(errorContainer, e);
-        }
+        showActionError(errorContainer, e);
         throw e;
     }
 }

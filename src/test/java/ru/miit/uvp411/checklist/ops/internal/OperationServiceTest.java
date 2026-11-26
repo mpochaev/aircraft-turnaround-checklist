@@ -49,25 +49,21 @@ class OperationServiceTest {
     @Test
     void resumingProblemRequiresManageEvenThoughStartingUsesTheSameTargetStatus() {
         OperationRequest request = new OperationRequest("in_progress", "Исправлено", null);
-        OperationContext context = new OperationContext(null,
-                new OperationContext.Turnaround(7, "in_service", 1, "tech07"), List.of());
         CurrentUser technician = new CurrentUser("tech07", Set.of("technician"), Set.of("operations.execute"));
         CurrentUser supervisor = new CurrentUser("sup01", Set.of("supervisor"), Set.of("operations.manage"));
 
-        assertThat(OperationAction.resolve("not_started", request).permitted(technician, context)).isTrue();
-        assertThat(OperationAction.resolve("problem", request).permitted(technician, context)).isFalse();
-        assertThat(OperationAction.resolve("problem", request).permitted(supervisor, context)).isTrue();
+        assertThat(OperationTransitions.resolve("not_started", request).permitted(technician, "tech07")).isTrue();
+        assertThat(OperationTransitions.resolve("problem", request).permitted(technician, "tech07")).isFalse();
+        assertThat(OperationTransitions.resolve("problem", request).permitted(supervisor, "tech07")).isTrue();
     }
 
     @Test
     void standaloneDelayCodeIsAllowedForAssignedTechnicianOrManager() {
-        OperationContext context = new OperationContext(null,
-                new OperationContext.Turnaround(7, "in_service", 1, "tech07"), List.of());
-        OperationAction action = OperationAction.resolve("done", new OperationRequest(null, null, 1));
+        OperationAction action = OperationTransitions.resolve("done", new OperationRequest(null, null, 1));
 
-        assertThat(action.permitted(new CurrentUser("tech07", Set.of(), Set.of("operations.execute")), context)).isTrue();
-        assertThat(action.permitted(new CurrentUser("tech12", Set.of(), Set.of("operations.execute")), context)).isFalse();
-        assertThat(action.permitted(new CurrentUser("sup01", Set.of(), Set.of("operations.manage")), context)).isTrue();
+        assertThat(action.permitted(new CurrentUser("tech07", Set.of(), Set.of("operations.execute")), "tech07")).isTrue();
+        assertThat(action.permitted(new CurrentUser("tech12", Set.of(), Set.of("operations.execute")), "tech07")).isFalse();
+        assertThat(action.permitted(new CurrentUser("sup01", Set.of(), Set.of("operations.manage")), "tech07")).isTrue();
     }
 
     private static OperationActionHandler handler(OperationAction action) {

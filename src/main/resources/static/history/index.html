@@ -21,9 +21,6 @@
         <datalist id="aircraftList"></datalist>
     </form>
     <div class="tiles" id="tiles"></div>
-    <p class="wip hidden" id="filterNote">Список за период появится, когда команда «Бизнес-логика» добавит в GET /turnarounds
-        фильтры status, dateFrom, dateTo, aircraftTypeId, aircraftId и flightNumber (спецификация API 7.3).
-        Пока ниже закрытые и отменённые обороты за сегодня. Показатели в плитках уже считаются за выбранный период.</p>
     <div class="table-wrap">
         <table class="table">
             <thead><tr><th>Дата</th><th>Оборот</th><th>Борт / тип</th><th>Ст.</th><th>Постановка</th><th>Отправление</th>
@@ -88,20 +85,15 @@
             page: pageNo,
             size: SIZE,
         });
-        // сервер ещё не знает фильтра status: оставляем закрытые и отменённые сами
-        const ignored = data.items.some((t) => !['closed', 'cancelled'].includes(t.status));
-        document.getElementById('filterNote').classList.toggle('hidden', !ignored);
-        const items = ignored ? data.items.filter((t) => ['closed', 'cancelled'].includes(t.status)) : data.items;
-        document.getElementById('rows').innerHTML = items.map(row).join('')
+        document.getElementById('rows').innerHTML = data.items.map(row).join('')
             || '<tr><td colspan="10" class="center muted">За период оборотов нет</td></tr>';
-        pager(document.getElementById('pager'), { page: pageNo, size: SIZE, total: ignored ? items.length : data.total, onPage: (p) => run(p, false) });
+        pager(document.getElementById('pager'), { page: pageNo, size: SIZE, total: data.total, onPage: (p) => run(p, false) });
     }
 
-    // Строка по модели TurnaroundRow (спецификация 9.2). Пока «Бизнес-логика» не перешла на неё, берём и старые поля.
     function row(t) {
-        const sta = t.arrFlight?.sta ?? t.sta;
-        const pair = t.arrFlight ? `${t.arrFlight.code} / ${t.depFlight.code.split(' ').pop()}` : `${t.airline} ${t.arrNumber} / ${t.depNumber}`;
-        const board = t.aircraft?.tailNumber ? `${t.aircraft.tailNumber} ${t.aircraft.typeCode}` : `${t.aircraft} ${t.aircraftType}`;
+        const sta = t.arrFlight.sta;
+        const pair = `${t.arrFlight.code} / ${t.depFlight.code.split(' ').pop()}`;
+        const board = `${t.aircraft.tailNumber} ${t.aircraft.typeCode}`;
         const closed = t.status === 'closed';
         const lates = t.operations ? t.operations.filter((o) => o.delayMin > 0).length : '—';
         return `

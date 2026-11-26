@@ -43,11 +43,11 @@
             setHeading();
             document.getElementById('rows').innerHTML = items.length ? items.map((t) => `
                 <tr class="clickable" data-id="${t.id}">
-                    <td>${escapeHtml(t.airline)} ${escapeHtml(t.arrNumber)} ${escapeHtml(t.arrFrom)} → ${escapeHtml(t.depNumber)} ${escapeHtml(t.depTo)}</td>
-                    <td>${escapeHtml(t.aircraft)} ${escapeHtml(t.aircraftType)}</td>
+                    <td>${escapeHtml(t.arrFlight.code)} ${escapeHtml(t.arrFlight.route)} → ${escapeHtml(t.depFlight.code)} ${escapeHtml(t.depFlight.route)}</td>
+                    <td>${escapeHtml(t.aircraft.tailNumber)} ${escapeHtml(t.aircraft.typeCode)}</td>
                     <td class="center">${escapeHtml(t.stand)}</td>
-                    <td class="center">${time(t.sta)}</td>
-                    <td class="center">${time(t.std)}</td>
+                    <td class="center">${time(t.arrFlight.sta)}</td>
+                    <td class="center">${time(t.depFlight.std)}</td>
                     <td>${TURNAROUND_STATUS[t.status]}</td>
                 </tr>`).join('') : '<tr><td colspan="6" class="center muted">На выбранную дату оборотов нет</td></tr>';
         } catch (e) {

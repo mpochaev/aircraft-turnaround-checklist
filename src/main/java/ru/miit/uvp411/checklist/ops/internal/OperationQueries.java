@@ -13,6 +13,13 @@ import ru.miit.uvp411.checklist.shared.jdbc.Rows;
 @Repository
 public class OperationQueries {
 
+    static final String WAITS_FOR = """
+            coalesce((select jsonb_agg(p.id order by p.seq_no, p.id)
+                from ops.exec_dependency d join ops.operation_exec p on p.id = d.prev_exec_id
+                where d.exec_id = e.id and p.status not in ('done', 'not_required')),
+                '[]'::jsonb) as "waitsFor"
+            """;
+
     private final JdbcClient jdbc;
 
     public OperationQueries(JdbcClient jdbc) {
@@ -61,6 +68,48 @@ public class OperationQueries {
                 .list();
     }
 
+    LocalDateTime start(long id, int executorId) {
+        return jdbc.sql("""
+                        update ops.operation_exec
+                        set status = 'in_progress', actual_start = date_trunc('second', clock_timestamp()::timestamp),
+                            executor_id = :executorId
+                        where id = :id
+                        returning actual_start
+                        """)
+                .param("id", id)
+                .param("executorId", executorId)
+                .query((rs, row) -> rs.getObject("actual_start", LocalDateTime.class))
+                .single();
+    }
+
+    LocalDateTime currentTime() {
+        return jdbc.sql("select date_trunc('second', clock_timestamp()::timestamp)")
+                .query((rs, row) -> rs.getObject(1, LocalDateTime.class))
+                .single();
+    }
+
+    void finish(long id, LocalDateTime actualEnd, int executorId, Integer delayCodeId) {
+        jdbc.sql("""
+                        update ops.operation_exec
+                        set status = 'done', actual_end = :actualEnd, executor_id = :executorId,
+                            delay_code_id = :delayCodeId
+                        where id = :id
+                        """)
+                .param("id", id)
+                .param("actualEnd", actualEnd)
+                .param("executorId", executorId)
+                .param("delayCodeId", delayCodeId, java.sql.Types.INTEGER)
+                .update();
+    }
+
+    void updateStatusAndComment(long id, String status, String comment) {
+        jdbc.sql("""
+                        update ops.operation_exec set status = :status, comment = :comment where id = :id
+                        """)
+                .param("id", id).param("status", status).param("comment", comment)
+                .update();
+    }
+
     /** Повторное чтение после обработчика: клиент получает сохранённые значения, а не старый снимок. */
     public Map<String, Object> operation(long id) {
         return Rows.clean(jdbc.sql("""
@@ -72,10 +121,8 @@ public class OperationQueries {
                                    u.last_name || ' ' || left(u.first_name, 1) || '.') end as executor,
                                case when dc.id is not null then jsonb_build_object('id', dc.id,
                                    'code', dc.code, 'name', dc.name) end as "delayCode", e.comment,
-                               coalesce((select jsonb_agg(p.id order by p.seq_no, p.id)
-                                   from ops.exec_dependency d join ops.operation_exec p on p.id = d.prev_exec_id
-                                   where d.exec_id = e.id and p.status not in ('done', 'not_required')),
-                                   '[]'::jsonb) as "waitsFor",
+                        """ + WAITS_FOR + """
+                               ,
                                case when e.actual_start is null then 0 else greatest(0,
                                    floor(extract(epoch from (coalesce(e.actual_end, localtimestamp) - e.actual_start)) / 60)
                                    )::integer end as "elapsedMin",
