@@ -17,7 +17,9 @@ public interface RefApi {
 
     /**
      * Активные нормативы типа ВС с зависимостями: snapshot для чек-листа (ФТ-21, ФТ-27).
-     * TODO команда «Справочники»: заменить Map на запись Norm(operationCode, seqNo, durationMin, mandatory, after).
+     * Каждая запись содержит id, operationCode, seqNo, durationMin, isMandatory,
+     * prevNormIds (id предшественников) и after (коды операций-предшественников).
+     * Map-контракт сохранён для совместимости с потребителями модуля.
      */
     List<Map<String, Object>> activeNorms(String aircraftTypeCode);
 }

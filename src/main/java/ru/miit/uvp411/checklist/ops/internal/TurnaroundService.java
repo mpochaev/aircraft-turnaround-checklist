@@ -176,7 +176,10 @@ public class TurnaroundService {
 
     private static Norm toNorm(Map<String, Object> values) {
         Object rawAfter = values.get("after");
-        List<String> after = rawAfter == null || rawAfter.toString().isBlank()
+        // RefApi отдаёт предшественников списком кодов; строку через запятую тоже понимаем
+        List<String> after = rawAfter instanceof java.util.Collection<?> c
+                ? c.stream().map(String::valueOf).toList()
+                : rawAfter == null || rawAfter.toString().isBlank()
                 ? List.of()
                 : List.of(rawAfter.toString().split("\\s*,\\s*"));
         return new Norm(
