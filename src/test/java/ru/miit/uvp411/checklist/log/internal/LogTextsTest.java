@@ -14,7 +14,8 @@ class LogTextsTest {
             "airline", Map.of(1L, "SU"),
             "airport", Map.of(1L, "SVO", 2L, "KGD"),
             "user", Map.of(7L, "Иванов П."),
-            "flight", Map.of(5L, "SU 1001", 6L, "SU 1002")));
+            "flight", Map.of(5L, "SU 1001", 6L, "SU 1002"),
+            "role", Map.of(1L, "Техник")));
 
     @Test
     void flightIsOneLine() {
@@ -44,6 +45,18 @@ class LogTextsTest {
     void turnaroundShowsFlightsByName() {
         assertThat(LogTexts.describe(Map.of("arrFlightId", 5, "depFlightId", 6, "technicianId", 7), names))
                 .contains("рейс прилёта SU 1001").contains("рейс вылета SU 1002").contains("техник Иванов П.");
+    }
+
+    @Test
+    void usersRolesAndDictionaryChanges() {
+        assertThat(LogTexts.describe(Map.of("login", "tech20", "roleIds", java.util.List.of(1), "isActive", true), names))
+                .contains("логин tech20").contains("роли Техник").contains("активна да");
+        assertThat(LogTexts.describe(Map.of("kind", "personal_data", "reason", "Смена фамилии"), names))
+                .isEqualTo("вид изменение ФИО: Смена фамилии");
+        Object[] changed = LogTexts.changedOnly(Map.of("id", 3, "code", "151", "isActive", true),
+                Map.of("id", 3, "code", "152", "isActive", true));
+        assertThat(LogTexts.describe(changed[0], names)).isEqualTo("151");
+        assertThat(LogTexts.describe(changed[1], names)).isEqualTo("152");
     }
 
     @Test
