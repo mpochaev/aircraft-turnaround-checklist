@@ -24,9 +24,16 @@
 
 ## Что уже есть
 
-- Realm `checklist`: роли technician и supervisor, пользователи sup01, sup02, tech07, tech12 с паролем `Demo-2026`.
-- Проверка токена, права ролей из `auth.role_permission`, `CurrentUser.get()`.
-- `GET /api/v1/me`, страница профиля (только просмотр).
+- Realm `checklist`: роли technician и supervisor, демо-пользователи sup01, sup02, tech07, tech12.
+- Вход браузера по OIDC/PKCE, проверка JWT на сервере, `CurrentUser.get()`, права ролей из `auth.role_permission`.
+- Управление пользователями, их ролями, блокировкой и временными паролями через Keycloak Admin API; профиль пользователя синхронизируется в `auth.app_user`.
+- API заявок на изменение ФИО и сброс пароля, список и рассмотрение заявок.
+- API ролей и разрешений; изменение разрешений инвалидирует 60-секундный кэш.
+- События LOGIN, LOGIN_ERROR и LOGOUT из Keycloak копируются в журнал; временная блокировка записывается как account_locked.
+- Профиль позволяет подать заявку на изменение ФИО, открыть страницу управления учётной записью Keycloak и запросить сброс пароля.
+- Экран «Пользователи и доступ»: пользователи, заявки, роли и права.
+- Миграция переносит пароли, пользовательские роли, счётчик ошибок и сессии из старой модели в Keycloak; в базе остаются профиль, заявки, справочник разрешений и права ролей.
+- Реализация покрыта интеграционными тестами на PostgreSQL Testcontainers. Проверка подписи токена остаётся на Spring Resource Server.
 - `AuthApi.findUser(login)`: ФИО пользователя для других модулей.
 
 ## Методы API
@@ -35,13 +42,13 @@
 |---|---|---|---|
 | `POST /auth/login` | вход переходит на страницу Keycloak | 5.1 | 1–4 |
 | `POST /auth/logout` | выход через Keycloak | 5.2 | 6 |
-| `POST /auth/password-reset` | заявка на сброс пароля без входа | 5.3 | 16 |
-| `GET /me` | готово | 5.4 | |
-| `PATCH /me/password` | смена пароля на странице Keycloak | 5.5 | 7 |
-| `POST /me/requests` | заявка на изменение ФИО | 5.6 | 13 |
-| `GET /users`, `POST /users`, `PATCH /users/{id}` | через Admin API Keycloak, копия ФИО в `auth.app_user` | 5.7–5.9 | 5, 7, 8 |
-| `GET /change-requests`, `PATCH /change-requests/{id}` | решение супервайзера применяется в Keycloak | 5.10, 5.11 | 14–16 |
-| `GET /roles`, `POST /roles`, `PATCH /roles/{id}`, `GET /permissions` | роль в Keycloak, права в `auth.role_permission`, после изменения сбросить кэш прав | 5.12–5.15 | 9–12 |
+| `POST /auth/password-reset` | готово: публичная заявка не раскрывает, существует ли логин | 5.3 | 16 |
+| `GET /me` | готово: пользователь, роли, права, открытые заявки | 5.4 | |
+| `PATCH /me/password` | смена пароля через account console Keycloak | 5.5 | 7 |
+| `POST /me/requests` | готово: заявка на изменение ФИО | 5.6 | 13 |
+| `GET /users`, `POST /users`, `PATCH /users/{id}` | готово: Keycloak Admin API, синхронизация профиля, роли, блокировка, временный пароль | 5.7–5.9 | 5, 7, 8 |
+| `GET /change-requests`, `PATCH /change-requests/{id}` | готово: подтверждение применяет изменения в Keycloak и PostgreSQL | 5.10, 5.11 | 14–16 |
+| `GET /roles`, `POST /roles`, `PATCH /roles/{id}`, `GET /permissions` | готово: роли в Keycloak, права в PostgreSQL, кэш сбрасывается | 5.12–5.15 | 9–12 |
 
 ## План по неделям
 

@@ -23,21 +23,15 @@ public class TestData {
     /** sup01 (супервайзер), tech07 и tech12 (техники). Повторный вызов ничего не меняет. */
     public void users() {
         jdbc.sql("""
-                insert into auth.app_user (login, password_hash, last_name, first_name, middle_name, must_change_password)
-                values ('sup01', '-', 'Петрова', 'Анна', 'Сергеевна', false),
-                       ('tech07', '-', 'Иванов', 'Пётр', 'Сергеевич', false),
-                       ('tech12', '-', 'Смирнов', 'Олег', null, false)
-                on conflict (login) do nothing
+                insert into auth.app_user (login, last_name, first_name, middle_name)
+                values ('sup01', 'Петрова', 'Анна', 'Сергеевна'),
+                       ('tech07', 'Иванов', 'Пётр', 'Сергеевич'),
+                       ('tech12', 'Смирнов', 'Олег', null)
+                on conflict (login) do update set last_name=excluded.last_name, first_name=excluded.first_name,
+                    middle_name=excluded.middle_name
                 """).update();
         // тест может отключить пользователя; следующий тест получает их снова активными
         jdbc.sql("update auth.app_user set is_active = true where login in ('sup01', 'tech07', 'tech12')").update();
-        jdbc.sql("""
-                insert into auth.user_role (user_id, role_id)
-                select u.id, r.id from auth.app_user u
-                join auth.role r on r.code = case when u.login like 'sup%' then 'supervisor' else 'technician' end
-                where u.login in ('sup01', 'tech07', 'tech12')
-                on conflict do nothing
-                """).update();
     }
 
     public int userId(String login) {

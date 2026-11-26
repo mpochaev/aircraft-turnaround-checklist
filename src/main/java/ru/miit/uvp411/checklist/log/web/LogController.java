@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import ru.miit.uvp411.checklist.auth.AuthApi;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import ru.miit.uvp411.checklist.log.ActionTypes;
 import ru.miit.uvp411.checklist.log.internal.LogQueries;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
@@ -31,11 +31,11 @@ class LogController {
     private static final Duration MAX_PERIOD = Duration.ofDays(31);
 
     private final LogQueries queries;
-    private final AuthApi auth;
+    private final JdbcClient jdbc;
 
-    LogController(LogQueries queries, AuthApi auth) {
+    LogController(LogQueries queries, JdbcClient jdbc) {
         this.queries = queries;
-        this.auth = auth;
+        this.jdbc = jdbc;
     }
 
     @GetMapping
@@ -64,7 +64,8 @@ class LogController {
         CurrentUser me = CurrentUser.get();
         String onlyLogin = null;
         if (!me.can("log.read_all")) {
-            Integer myId = auth.findUser(me.login()).map(AuthApi.UserInfo::id).orElse(null);
+            Integer myId = jdbc.sql("select id from auth.app_user where login = :login")
+                    .param("login", me.login()).query(Integer.class).optional().orElse(null);
             if (userId != null && !userId.equals(myId)) {
                 throw ApiException.forbidden();
             }

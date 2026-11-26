@@ -351,14 +351,6 @@ public class TurnaroundQueries {
                 .param("id", technicianId).query(Boolean.class).list().stream().findFirst();
     }
 
-    boolean technicianHasService(int technicianId) {
-        return Boolean.TRUE.equals(jdbc.sql("""
-                        select exists (select 1 from auth.v_user_permission
-                                       where user_id = :id and code = 'turnarounds.service')
-                        """)
-                .param("id", technicianId).query(Boolean.class).single());
-    }
-
     boolean aircraftBusy(int aircraftId) {
         return Boolean.TRUE.equals(jdbc.sql("""
                         select exists (select 1 from ops.turnaround

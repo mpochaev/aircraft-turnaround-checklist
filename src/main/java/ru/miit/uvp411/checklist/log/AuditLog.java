@@ -25,6 +25,5 @@ public interface AuditLog {
      * @param newValue   значения полей после изменения или null
      */
     record Entry(String actionType, String entity, Long entityId, Long turnaroundId,
-                 Map<String, Object> oldValue, Map<String, Object> newValue) {
-    }
+                 Map<String, Object> oldValue, Map<String, Object> newValue) { }
 }

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.miit.uvp411.checklist.auth.AuthApi;
+import ru.miit.uvp411.checklist.auth.internal.AuthManagementService;
 import ru.miit.uvp411.checklist.shared.security.CurrentUser;
 
 /**
@@ -19,9 +20,11 @@ import ru.miit.uvp411.checklist.shared.security.CurrentUser;
 class MeController {
 
     private final AuthApi auth;
+    private final AuthManagementService management;
 
-    MeController(AuthApi auth) {
+    MeController(AuthApi auth, AuthManagementService management) {
         this.auth = auth;
+        this.management = management;
     }
 
     @GetMapping("/me")
@@ -38,6 +41,7 @@ class MeController {
         }, () -> body.put("shortName", user.login()));
         body.put("roles", user.roles());
         body.put("permissions", user.permissions());
+        body.put("pendingRequests", management.pendingRequests(user.login()));
         return body;
     }
 }

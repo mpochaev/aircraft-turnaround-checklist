@@ -24,8 +24,7 @@ BEGIN
     SELECT ac.id, s.id, arr, dep, u.id, 'closed', d + interval '2 minutes', d + interval '60 minutes', d + interval '66 minutes'
     FROM ref.aircraft ac, ref.stand s, auth.app_user u
     WHERE ac.tail_number = 'RA-73711' AND s.code = '125'
-      AND u.id = (SELECT ur.user_id FROM auth.user_role ur JOIN auth.role r ON r.id = ur.role_id
-                  WHERE r.code = 'technician' ORDER BY ur.user_id LIMIT 1)
+      AND u.login = 'tech07'
     RETURNING id INTO t;
     INSERT INTO ops.operation_exec (turnaround_id, operation_id, norm_id, seq_no, duration_min, is_mandatory, status,
                                     planned_start, planned_end, actual_start, actual_end)

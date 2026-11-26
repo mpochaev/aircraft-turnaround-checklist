@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.miit.uvp411.checklist.ops.PlanCalculator;
 import ru.miit.uvp411.checklist.ops.PlanCalculator.Norm;
 import ru.miit.uvp411.checklist.ops.PlanCalculator.PlannedOperation;
+import ru.miit.uvp411.checklist.auth.AuthApi;
 import ru.miit.uvp411.checklist.ref.RefApi;
 import ru.miit.uvp411.checklist.shared.error.ApiError;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
@@ -27,13 +28,15 @@ public class TurnaroundService {
     private final RefApi refApi;
     private final PlanCalculator planCalculator;
     private final OpsAudit audit;
+    private final AuthApi authApi;
 
     public TurnaroundService(TurnaroundQueries queries, RefApi refApi,
-                             PlanCalculator planCalculator, OpsAudit audit) {
+                             PlanCalculator planCalculator, OpsAudit audit, AuthApi authApi) {
         this.queries = queries;
         this.refApi = refApi;
         this.planCalculator = planCalculator;
         this.audit = audit;
+        this.authApi = authApi;
     }
 
     @Transactional
@@ -169,7 +172,7 @@ public class TurnaroundService {
 
     private void requireTechnician(int technicianId) {
         if (!queries.technicianActive(technicianId).orElse(false)
-                || !queries.technicianHasService(technicianId)) {
+                || !authApi.hasPermission(technicianId, "turnarounds.service")) {
             throw inactiveReference("technicianId", technicianId);
         }
     }
