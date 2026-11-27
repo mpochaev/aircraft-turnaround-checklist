@@ -19,11 +19,13 @@ class FinishHandler implements OperationActionHandler {
     private final OperationQueries queries;
     private final RefApi ref;
     private final OpsAudit audit;
+    private final TurnaroundTransitions turnaroundTransitions;
 
-    FinishHandler(OperationQueries queries, RefApi ref, OpsAudit audit) {
+    FinishHandler(OperationQueries queries, RefApi ref, OpsAudit audit, TurnaroundTransitions turnaroundTransitions) {
         this.queries = queries;
         this.ref = ref;
         this.audit = audit;
+        this.turnaroundTransitions = turnaroundTransitions;
     }
 
     @Override
@@ -57,6 +59,7 @@ class FinishHandler implements OperationActionHandler {
             audit.operation("delay_code", operation.id(), context.turnaround().id(),
                     before, Map.of("delayCodeId", delayCodeId));
         }
+        turnaroundTransitions.completeWhenMandatoryOperationsDone(context.turnaround().id());
     }
 
     private static Map<String, Object> values(String status, LocalDateTime actualEnd, Integer executorId,

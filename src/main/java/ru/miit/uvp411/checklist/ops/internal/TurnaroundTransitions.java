@@ -33,6 +33,20 @@ public class TurnaroundTransitions {
     }
 
     @Transactional
+    public void completeWhenMandatoryOperationsDone(long id) {
+        Map<String, Object> before = queries.lockForTransition(id)
+                .orElseThrow(() -> new IllegalStateException("Оборот не найден при автоматическом завершении"));
+        if (!"in_service".equals(before.get("status"))
+                || number(before, "mandatoryTotal") == 0
+                || number(before, "mandatoryDone") != number(before, "mandatoryTotal")) {
+            return;
+        }
+
+        queries.markReady(id);
+        audit.turnaround("ready", id, before, Map.of("status", "ready"));
+    }
+
+    @Transactional
     public Map<String, Object> update(long id, TurnaroundTransitionRequest request) {
         if (!"ready".equals(request.status())) {
             throw invalidTransition();
