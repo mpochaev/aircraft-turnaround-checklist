@@ -1,0 +1,488 @@
+html,
+body {
+    min-height: 100%;
+    background: #f3f4f6 !important;
+    color: #111 !important;
+}
+
+body {
+    box-sizing: border-box;
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+.pf-v5-c-login {
+    display: block;
+    min-height: 100vh;
+    padding: 0;
+    background: transparent;
+}
+
+.pf-v5-c-login__container {
+    display: flex;
+    width: 100%;
+    min-height: inherit;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0;
+}
+
+#kc-header {
+    display: none;
+}
+
+.pf-v5-c-login__main {
+    box-sizing: border-box;
+    width: min(960px, calc(43vw + 134px));
+    margin: 24px auto 0;
+    padding: 40px 67px 34px;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 12px 40px rgba(17, 17, 17, 0.08);
+}
+
+.pf-v5-c-login__main-header {
+    display: block;
+    margin: calc(13vh - 24px) 0 9vh;
+    padding: 0;
+}
+
+#kc-page-title {
+    position: relative;
+    left: 50%;
+    width: min(1200px, calc(100vw - 48px));
+    margin: 0;
+    padding: 0;
+    color: #111;
+    font-size: inherit;
+    line-height: inherit;
+    transform: translateX(-50%);
+}
+
+.pf-v5-c-login__main-body {
+    width: 100%;
+    padding: 0;
+}
+
+.pf-v5-c-login__main-body > .pf-v5-c-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 0 0 24px;
+    padding: 16px 20px;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #6b7280;
+    border-radius: 8px;
+    background: #f9fafb;
+    color: #374151;
+    box-shadow: none;
+}
+
+.pf-v5-c-login__main-body > .pf-v5-c-alert .pf-v5-c-alert__icon,
+.pf-v5-c-login__main-body > .pf-v5-c-alert .pf-v5-c-alert__title {
+    color: inherit;
+}
+
+.pf-v5-c-login__main-body > .pf-v5-c-alert .pf-v5-c-alert__title {
+    font-size: clamp(14px, 1vw, 18px);
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+.checklist-heading {
+    color: #111;
+    font-size: clamp(24px, 2.2vw, 42px);
+    font-weight: 700;
+    line-height: 1.25;
+    text-align: center;
+}
+
+.checklist-login {
+    width: 100%;
+    color: #111;
+    font-size: clamp(16px, 1.3vw, 24px);
+}
+
+.checklist-field,
+.checklist-reset-row {
+    display: grid;
+    grid-template-columns: 11.2vw minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5vw;
+    margin-bottom: 32px;
+}
+
+#kc-form-login .checklist-field:first-child {
+    margin-bottom: 32px;
+}
+
+#kc-form-login .checklist-field:nth-child(2) {
+    margin-bottom: calc(32px + 1.5vh);
+}
+
+.checklist-login label,
+.checklist-reset label,
+#kc-passwd-update-form .pf-v5-c-form__label {
+    color: #4b5563;
+    font-weight: 500;
+    font-size: clamp(16px, 1.3vw, 24px);
+    line-height: 1.45;
+}
+
+.checklist-login input,
+.checklist-reset input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: clamp(50px, 4.2vw, 78px);
+    padding: 0 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+    color: #111;
+    font: inherit;
+}
+
+.checklist-login input:focus,
+.checklist-reset input:focus {
+    border-color: #111;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12);
+}
+
+#kc-login,
+.checklist-reset button {
+    min-height: clamp(56px, 5vw, 94px);
+    padding: 8px 20px;
+    border: 1px solid #111;
+    border-radius: 12px;
+    background: #111;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+#kc-login {
+    width: calc(100% - 11.7vw);
+    margin: 0 0 0 11.7vw;
+}
+
+#kc-login:hover {
+    background: #333;
+}
+
+#kc-login:focus-visible,
+.checklist-reset button:focus-visible,
+.checklist-forgot:focus-visible {
+    outline: 2px solid #111;
+    outline-offset: 3px;
+}
+
+.checklist-reset button {
+    background: #fff;
+    color: #111;
+    border-color: #d1d5db;
+    font-weight: 500;
+}
+
+.checklist-reset button:hover {
+    background: #f3f4f6;
+}
+
+.checklist-message {
+    margin: 24px 0 0 11.7vw;
+    color: #111;
+}
+
+.checklist-forgot {
+    display: inline-block;
+    margin: 28px 0 0 11.7vw;
+    color: #111;
+}
+
+.checklist-reset {
+    margin: calc(52px + 4vh) 0 0;
+    padding-top: 34px;
+    border-top: 1px solid #d1d5db;
+}
+
+.checklist-reset h2 {
+    margin: 0 0 22px;
+    color: #1f2937;
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.checklist-reset-row {
+    margin-bottom: 0;
+}
+
+.checklist-reset-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+}
+
+.checklist-reset button {
+    min-height: clamp(50px, 4.2vw, 78px);
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.checklist-reset-status {
+    margin: 8px 0 0 11.7vw;
+    font-size: 0.8em;
+}
+
+.checklist-password-intro {
+    margin: 0 0 28px;
+    color: #4b5563;
+    font-size: clamp(16px, 1.3vw, 24px);
+}
+
+#kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) {
+    display: grid;
+    grid-template-columns: max(15vw, 180px) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5vw;
+    margin-bottom: 32px;
+}
+
+#kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(2) {
+    margin-bottom: calc(32px + 1.5vh);
+}
+
+#kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) > .pf-v5-c-form__group-label {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 0;
+}
+
+#kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) > .pf-v5-c-input-group,
+#kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) > .pf-v5-c-form-control {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+}
+
+#kc-passwd-update-form .pf-v5-c-form-control {
+    box-sizing: border-box;
+    height: clamp(50px, 4.2vw, 78px);
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: none;
+}
+
+#kc-passwd-update-form .pf-v5-c-form-control::after,
+#kc-passwd-update-form .pf-v5-c-button.pf-m-control::after {
+    display: none;
+}
+
+#kc-passwd-update-form .pf-v5-c-form-control:focus-within {
+    border-color: #111;
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12);
+}
+
+#kc-passwd-update-form .pf-v5-c-form-control input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: 0 16px;
+    border: 0;
+    background: transparent;
+    color: #111;
+    font: inherit;
+}
+
+#kc-passwd-update-form .pf-v5-c-form-control input:focus {
+    border: 0;
+    box-shadow: none;
+    outline: none;
+}
+
+#kc-passwd-update-form .pf-v5-c-input-group {
+    min-width: 0;
+}
+
+#kc-passwd-update-form .pf-v5-c-input-group__item.pf-m-fill {
+    min-width: 0;
+    flex: 1;
+}
+
+#kc-passwd-update-form .pf-v5-c-button.pf-m-control {
+    min-height: 100%;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #4b5563;
+}
+
+#kc-passwd-update-form .pf-v5-c-button.pf-m-control:hover {
+    background: #f3f4f6;
+}
+
+.checklist-password-options {
+    margin: 0 0 28px calc(max(15vw, 180px) + 0.5vw);
+    color: #4b5563;
+}
+
+.checklist-password-options .pf-v5-c-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checklist-password-options .pf-v5-c-check__label {
+    color: #4b5563;
+    font-size: clamp(14px, 1vw, 18px);
+}
+
+.checklist-password-options .pf-v5-c-check__input {
+    width: 16px;
+    height: 16px;
+    accent-color: #111;
+}
+
+.checklist-password-actions {
+    width: calc(100% - max(15vw, 180px) - 0.5vw);
+    margin-left: calc(max(15vw, 180px) + 0.5vw);
+}
+
+.checklist-password-actions .pf-v5-c-form__group {
+    margin: 0;
+}
+
+.checklist-password-actions .pf-v5-c-form__actions {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+.checklist-password-actions #kc-submit,
+.checklist-password-actions #kc-cancel {
+    box-sizing: border-box;
+    min-height: clamp(56px, 5vw, 94px);
+    margin: 0;
+    border-radius: 12px;
+    font: inherit;
+    font-weight: 600;
+}
+
+.checklist-password-actions #kc-submit {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #111;
+    background: #111;
+    color: #fff;
+    font-size: clamp(16px, 1.3vw, 24px);
+    text-align: center;
+}
+
+.checklist-password-actions #kc-submit:hover {
+    background: #333;
+}
+
+.checklist-password-actions #kc-cancel {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #111;
+}
+
+.checklist-password-actions #kc-cancel:hover {
+    background: #f3f4f6;
+}
+
+@media (max-width: 640px) {
+    .pf-v5-c-login__main {
+        width: calc(100% - 32px);
+        margin: 12px auto;
+        padding: 24px 20px;
+    }
+
+    .pf-v5-c-login__main-header {
+        margin: 7vh 0 8vh;
+    }
+
+    #kc-page-title {
+        left: auto;
+        width: 100%;
+        transform: none;
+    }
+
+    .checklist-field,
+    .checklist-reset-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    #kc-form-login .checklist-field:first-child,
+    #kc-form-login .checklist-field:nth-child(2) {
+        margin-bottom: 20px;
+    }
+
+    .checklist-reset {
+        margin-top: 52px;
+    }
+
+    #kc-login,
+    .checklist-message,
+    .checklist-forgot,
+    .checklist-reset-status {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    #kc-login {
+        margin-top: 4px;
+    }
+
+    .checklist-forgot {
+        margin-top: 28px;
+    }
+
+    .checklist-reset-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .checklist-password-intro {
+        margin-bottom: 20px;
+    }
+
+    #kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    #kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(2) {
+        margin-bottom: 20px;
+    }
+
+    #kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) > .pf-v5-c-form__group-label,
+    #kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) > .pf-v5-c-input-group,
+    #kc-passwd-update-form > .pf-v5-c-form__group:nth-of-type(-n+2) > .pf-v5-c-form-control {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    .checklist-password-options,
+    .checklist-password-actions {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .checklist-password-actions .pf-v5-c-form__actions {
+        flex-direction: column;
+    }
+}

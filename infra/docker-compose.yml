@@ -38,6 +38,7 @@ services:
       #   docker compose -f infra/docker-compose.yml rm -sf keycloak && docker volume rm checklist_kcdata
       - kcdata:/opt/keycloak/data
       - ./keycloak/realm-checklist.json:/opt/keycloak/data/import/realm-checklist.json:ro
+      - ./keycloak/themes/checklist:/opt/keycloak/themes/checklist:ro
 
   adminer:
     image: adminer:4

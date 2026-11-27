@@ -1,6 +1,7 @@
 package ru.miit.uvp411.checklist.shared.security;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +14,9 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
 import ru.miit.uvp411.checklist.shared.error.ApiError;
@@ -32,7 +36,8 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain api(HttpSecurity http, AppSecurityProperties props, PermissionResolver resolver) throws Exception {
-        http.csrf(c -> c.disable())
+        http.cors(c -> c.configurationSource(passwordResetCors(props)))
+                .csrf(c -> c.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/v1/config", "/api/v1/auth/password-reset", "/actuator/health/**").permitAll()
@@ -50,6 +55,16 @@ public class SecurityConfig {
                     .authenticationEntryPoint(unauthorized()));
         }
         return http.build();
+    }
+
+    private static CorsConfigurationSource passwordResetCors(AppSecurityProperties props) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of(props.keycloak().url()));
+        configuration.setAllowedMethods(List.of("POST"));
+        configuration.setAllowedHeaders(List.of("Content-Type"));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/v1/auth/password-reset", configuration);
+        return source;
     }
 
     private static AuthenticationEntryPoint unauthorized() {

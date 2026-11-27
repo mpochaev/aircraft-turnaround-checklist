@@ -19,8 +19,10 @@
 | Сервер | `java/auth/` |
 | Проверка токена и прав | `java/shared/security/` (меняете вы, остальные смотрят пулреквест) |
 | Страницы | `static/profile.html`, `static/users/` |
-| Keycloak | `infra/keycloak/realm-checklist.json` |
+| Keycloak и тема страницы входа | `infra/keycloak/realm-checklist.json`, `infra/keycloak/themes/checklist/` |
 | Миграции | `src/main/resources/db/migration/V<дата>__auth_<что>.sql` |
+
+Тема входа подключена в realm. После изменения Compose выполните `docker compose -f infra/docker-compose.yml --env-file .env up -d`, чтобы смонтировать тему. Для уже созданного тома Keycloak дополнительно выберите `checklist` в настройках realm: **Realm settings → Themes → Login theme**; импорт realm из файла применяется только при первом запуске на пустом томе.
 
 ## Что уже есть
 

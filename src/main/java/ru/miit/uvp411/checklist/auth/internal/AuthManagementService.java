@@ -24,6 +24,8 @@ import ru.miit.uvp411.checklist.shared.error.ApiException;
 @Service
 public class AuthManagementService {
 
+    private static final String PASSWORD_RESET_RESPONSE =
+            "Если учётная запись существует, заявка направлена супервайзеру";
     private static final Pattern ROLE_CODE = Pattern.compile("[a-z_]{3,30}");
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final char[] PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%".toCharArray();
@@ -255,7 +257,7 @@ public class AuthManagementService {
         String login = required(request.login(), "login", 3, 50);
         List<JsonNode> users = keycloak.findUsers(login);
         if (users.isEmpty() || !users.getFirst().path("enabled").asBoolean(true)) {
-            return Map.of("status", "pending", "message", "Если учётная запись существует, заявка направлена супервайзеру");
+            return passwordResetResponse();
         }
         int userId = syncUser(users.getFirst());
         var previous = org.springframework.security.core.context.SecurityContextHolder.getContext();
@@ -263,10 +265,19 @@ public class AuthManagementService {
                 login, null, List.of());
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(anonymousRequestActor);
         try {
-            return createRequest(userId, "password_reset", null, request.reason() == null ? "" : request.reason().trim());
+            try {
+                createRequest(userId, "password_reset", null, request.reason() == null ? "" : request.reason().trim());
+            } catch (ApiException e) {
+                if (!"REQUEST_EXISTS".equals(e.code())) throw e;
+            }
+            return passwordResetResponse();
         } finally {
             org.springframework.security.core.context.SecurityContextHolder.setContext(previous);
         }
+    }
+
+    private static Map<String, Object> passwordResetResponse() {
+        return Map.of("status", "pending", "message", PASSWORD_RESET_RESPONSE);
     }
 
     @Transactional(readOnly = true)

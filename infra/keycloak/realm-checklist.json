@@ -2,6 +2,7 @@
   "realm": "checklist",
   "displayName": "Цифровой чек-лист",
   "enabled": true,
+  "loginTheme": "checklist",
   "internationalizationEnabled": true,
   "supportedLocales": ["ru"],
   "defaultLocale": "ru",
