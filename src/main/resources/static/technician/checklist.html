@@ -48,10 +48,37 @@
     const id = new URLSearchParams(location.search).get('id');
     const page = document.getElementById('page');
     let turnaround = null;
+    let delayCodes = [];
+
+    try {
+        const delayData = await api.get('/ref/delay-codes', { isActive: 'true' });
+        delayCodes = delayData.items || [];
+    } catch (e) {
+        showError(page, e);
+    }
 
     function confirmContext() {
         if (!turnaround) return '';
         return `${turnaround.airline} ${turnaround.arrNumber} / ${turnaround.depNumber} · ${turnaround.aircraft} · стоянка ${turnaround.stand}`;
+    }
+
+    function delayCodeLabel(op) {
+        if (!op.delayCode) return '';
+        if (typeof op.delayCode === 'object') {
+            return op.delayCode.code || '';
+        }
+        return String(op.delayCode);
+    }
+
+    function factText(op) {
+        if (op.status === 'not_required') return '—';
+        if (op.actualStart && op.actualEnd) {
+            return `${time(op.actualStart)}–${time(op.actualEnd)}`;
+        }
+        if (op.actualStart) {
+            return `с ${time(op.actualStart)}`;
+        }
+        return '';
     }
 
     function predecessorNames(op, byCode, byId) {
@@ -75,9 +102,10 @@
             return `<span class="cl-mark">! Проблема: ${escapeHtml(op.comment || '')}${actions ? ' ' + actions : ''}</span>`;
         }
         if (op.status === 'done') {
-            const lag = minutesBetween(op.plannedEnd, op.actualEnd);
+            const lag = op.delayMin != null ? op.delayMin : minutesBetween(op.plannedEnd, op.actualEnd);
+            const code = delayCodeLabel(op);
             const actions = renderActionButtons(op.allowedActions || []);
-            return `<span class="cl-mark">Выполнена${lag > 0 ? `, +${lag} мин` : ''}${op.delayCode ? `, код ${escapeHtml(op.delayCode)}` : ''}${actions ? ' ' + actions : ''}</span>`;
+            return `<span class="cl-mark">Выполнена${lag > 0 ? `, +${lag} мин` : ''}${code ? `, код ${escapeHtml(code)}` : ''}${actions ? ' ' + actions : ''}</span>`;
         }
 
         const waits = predecessorNames(op, byCode, byId);
@@ -89,14 +117,14 @@
             const passed = op.elapsedMin != null ? op.elapsedMin : minutesBetween(op.actualStart, localIso());
             const actions = (op.allowedActions && op.allowedActions.length)
                 ? renderActionButtons(op.allowedActions, { primary: 'finish' })
-                : `<button type="button" class="btn" disabled title="Кнопка станет активной, когда сервер вернёт allowedActions">Завершить</button>
-                    <button type="button" class="btn" disabled title="Кнопка станет активной, когда сервер вернёт allowedActions">Проблема</button>`;
+                : `<button type="button" class="btn" disabled>Завершить</button>
+                    <button type="button" class="btn" disabled>Проблема</button>`;
             return `<span class="cl-mark" data-op-id="${op.id}">${actions} (${passed} / ${op.durationMin} мин)${waitHtml ? ' ' + waitHtml : ''}</span>`;
         }
 
         const actions = (op.allowedActions && op.allowedActions.length)
             ? renderActionButtons(op.allowedActions, { primary: 'start' })
-            : '<button type="button" class="btn" disabled title="Кнопка станет активной, когда сервер вернёт allowedActions">Начать</button>';
+            : '<button type="button" class="btn" disabled>Начать</button>';
         return `<span class="cl-mark" data-op-id="${op.id}">${actions}${waitHtml ? ' ' + waitHtml : ''}</span>`;
     }
 
@@ -146,7 +174,7 @@
                     <td class="center">${op.seqNo}</td>
                     <td>${escapeHtml(op.name)}${op.isMandatory === false ? ' <span class="muted">(необяз.)</span>' : ''}</td>
                     <td class="center nowrap">${op.status === 'not_required' ? '—' : `${time(op.plannedStart)}–${time(op.plannedEnd)}`}</td>
-                    <td class="center nowrap">${op.actualStart ? time(op.actualStart) + (op.actualEnd ? '–' + time(op.actualEnd) : '') : ''}</td>
+                    <td class="center nowrap">${escapeHtml(factText(op))}</td>
                     <td class="${operationClass(op, now)}">${mark(op, byCode, byId)}</td>
                 </tr>`).join('');
         } catch (e) {
@@ -168,6 +196,7 @@
                     confirmText: op.name || confirmContext(),
                     touch: true,
                     errorContainer: page,
+                    delayCodes,
                     onDone: () => load(false),
                 });
             } else {
