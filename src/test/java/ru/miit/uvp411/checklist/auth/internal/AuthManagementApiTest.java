@@ -5,6 +5,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -105,6 +106,17 @@ class AuthManagementApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"))
                 .andExpect(jsonPath("$.id").doesNotExist())
                 .andExpect(jsonPath("$.request").doesNotExist());
+    }
+
+    @Test
+    void allowsPasswordResetRequestsFromTheConfiguredKeycloakOrigin() throws Exception {
+        keycloakMvc.perform(options("/api/v1/auth/password-reset")
+                        .header("Origin", "http://localhost:8180")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "content-type"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Access-Control-Allow-Origin", "http://localhost:8180"));
     }
 
     @Test
