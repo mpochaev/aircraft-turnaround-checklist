@@ -79,7 +79,7 @@ public class LogTexts {
 
     private static final List<String> TEXT_FIELDS = List.of("comment", "cancelReason", "reason");
     /** Время отметки совпадает со временем записи журнала, служебные поля на экран не выводим. */
-    private static final Set<String> HIDDEN = Set.of("actualStart", "actualEnd", "onBlockAt", "readyAt", "offBlockAt", "source", "id");
+    private static final Set<String> HIDDEN = Set.of("actualStart", "actualEnd", "onBlockAt", "readyAt", "offBlockAt", "source", "session", "id");
 
     private final JdbcClient jdbc;
 
