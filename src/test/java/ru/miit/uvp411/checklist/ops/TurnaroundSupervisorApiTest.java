@@ -18,6 +18,53 @@ import ru.miit.uvp411.checklist.IntegrationTest;
 class TurnaroundSupervisorApiTest extends IntegrationTest {
 
     @Test
+    void supervisorCanPutAircraftOnBlock() throws Exception {
+        LocalDateTime sta = LocalDateTime.now().plusDays(2).withSecond(0).withNano(0);
+        long turnaroundId = data.turnaround("RA-73725", "planned", sta, sta.plusHours(2), null, null, null);
+        data.operation(turnaroundId, "DEBOARD", "not_started",
+                sta.plusMinutes(5), sta.plusMinutes(15), null, null);
+
+        mvc.perform(get("/api/v1/turnarounds/{id}", turnaroundId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowedActions[0]", is("in_service")));
+
+        mvc.perform(patch("/api/v1/turnarounds/{id}", turnaroundId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"in_service\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("in_service")))
+                .andExpect(jsonPath("$.onBlockAt").isNotEmpty());
+
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("""
+                        select count(*) from log.action_log
+                        where action_type = 'on_block' and turnaround_id = :id
+                        """)
+                .param("id", turnaroundId).query(Integer.class).single()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("""
+                        select planned_start from ops.operation_exec where turnaround_id = :id
+                        """)
+                .param("id", turnaroundId).query(LocalDateTime.class).single()).isBefore(sta.plusMinutes(5));
+    }
+
+    @Test
+    void onlyAssignedTechnicianCanPutAircraftOnBlockWithoutSupervisorRole() throws Exception {
+        LocalDateTime sta = LocalDateTime.now().plusDays(2).withSecond(0).withNano(0);
+        long turnaroundId = data.turnaround("RA-73725", "planned", sta, sta.plusHours(2), null, null, null);
+        data.operation(turnaroundId, "DEBOARD", "not_started",
+                sta.plusMinutes(5), sta.plusMinutes(15), null, null);
+
+        mvc.perform(patch("/api/v1/turnarounds/{id}", turnaroundId)
+                        .header("X-Dev-User", "tech12").header("X-Dev-Roles", "technician")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"in_service\"}"))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(patch("/api/v1/turnarounds/{id}", turnaroundId)
+                        .header("X-Dev-User", "tech07").header("X-Dev-Roles", "technician")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"in_service\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("in_service")));
+    }
+
+    @Test
     void supervisorListIncludesOperationCellsAndAppliesServerFilters() throws Exception {
         LocalDateTime sta = LocalDate.now().atTime(9, 0);
         long turnaroundId = data.turnaround("RA-73725", "in_service", sta, sta.plusHours(2), sta, null, null);

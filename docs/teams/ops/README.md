@@ -43,8 +43,8 @@
 | `POST /flights` | готово: уникальность по шести полям ключа и журнал `flight_created` | 7.2 | 21, 22 |
 | `GET /turnarounds` | фильтры и пагинация; операции в строках, `allowedActions` и summary для таблицы супервайзера | 7.3 | 43, 44 |
 | `POST /turnarounds` | нормативы через `RefApi.activeNorms`, активность через `RefApi.isActive`, план по зависимостям | 7.4 | 23–26 |
-| `GET /turnarounds/{id}` | операции с `executor`, `waitsFor`, `elapsedMin`, `delayMin` и `allowedActions`; действие оборота `ready` для супервайзера | 7.5 | |
-| `PATCH /turnarounds/{id}` | ручное подтверждение `ready` супервайзером; для техника статус `ready` устанавливается автоматически после последней обязательной операции | 7.6 | 43 |
+| `GET /turnarounds/{id}` | операции с `executor`, `waitsFor`, `elapsedMin`, `delayMin` и `allowedActions`; действия `in_service` и `ready` | 7.5 | |
+| `PATCH /turnarounds/{id}` | постановка ВС (`in_service`) для супервайзера или назначенного техника; ручное подтверждение `ready` супервайзером | 7.6 | 27, 43 |
 | `PATCH /operations/{id}` | переходы по рисунку А.3 ЧТЗ; ошибки `PREDECESSORS_NOT_DONE`, `DELAY_CODE_REQUIRED`, `MANDATORY_OPERATION`, `COMMENT_REQUIRED` | 7.7 | 28–33, 39–42 |
 
 ### Контракт рейса и поиска

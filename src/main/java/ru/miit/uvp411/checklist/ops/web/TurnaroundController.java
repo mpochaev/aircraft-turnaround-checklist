@@ -126,7 +126,7 @@ class TurnaroundController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAuthority('turnarounds.manage')")
+    @PreAuthorize("hasAnyAuthority('turnarounds.manage', 'turnarounds.service')")
     Map<String, Object> update(@PathVariable long id, @Valid @RequestBody TurnaroundTransitionRequest request) {
         return transitions.update(id, request);
     }

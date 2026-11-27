@@ -161,16 +161,39 @@ public class TurnaroundQueries {
     public Optional<Map<String, Object>> lockForTransition(long id) {
         return jdbc.sql("""
                         select t.id, t.status, t.ready_at as "readyAt",
+                               u.login as "technicianLogin",
                                (select count(*) from ops.operation_exec e
                                  where e.turnaround_id = t.id and e.is_mandatory and e.status = 'done')
                                    as "mandatoryDone",
                                (select count(*) from ops.operation_exec e
                                  where e.turnaround_id = t.id and e.is_mandatory) as "mandatoryTotal"
                         from ops.turnaround t
+                        join auth.app_user u on u.id = t.technician_id
                         where t.id = :id
                         for update of t
                         """)
                 .param("id", id).query().listOfRows().stream().findFirst().map(Rows::clean);
+    }
+
+    public void markInService(long id) {
+        jdbc.sql("""
+                        update ops.turnaround
+                           set status = 'in_service', on_block_at = localtimestamp
+                         where id = :id and status = 'planned'
+                        """)
+                .param("id", id).update();
+    }
+
+    public void shiftPlanToActualOnBlock(long id) {
+        jdbc.sql("""
+                        update ops.operation_exec e
+                           set planned_start = e.planned_start + (t.on_block_at - f.sta),
+                               planned_end = e.planned_end + (t.on_block_at - f.sta)
+                          from ops.turnaround t
+                          join ops.flight f on f.id = t.arr_flight_id
+                         where t.id = :id and e.turnaround_id = t.id
+                        """)
+                .param("id", id).update();
     }
 
     public void markReady(long id) {
