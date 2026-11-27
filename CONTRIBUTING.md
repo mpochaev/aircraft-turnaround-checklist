@@ -2,7 +2,7 @@
 
 ## Задачи
 
-Каждая работа начинается с задачи в Issues. Стартовый список задач лежит в [docs/backlog.md](docs/backlog.md), а скрипт `tools/github/create_issues.py` заводит их в GitHub разом.
+Каждая работа начинается с задачи в Issues. Стартовый список задач лежит в [docs/backlog.md](docs/backlog.md).
 
 У задачи есть:
 - метка команды: `team:auth`, `team:ref`, `team:ops`, `team:data` или `team:all`;
