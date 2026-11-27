@@ -101,7 +101,10 @@ class AuthManagementApiTest extends IntegrationTest {
         keycloakMvc.perform(post("/api/v1/auth/password-reset")
                         .contentType("application/json").content("{\"login\":\"missing.user\"}"))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"));
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andExpect(jsonPath("$.request").doesNotExist());
     }
 
     @Test
@@ -109,11 +112,28 @@ class AuthManagementApiTest extends IntegrationTest {
         when(keycloak.findUsers("tech07")).thenReturn(List.of(json("""
                 {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов"}
                 """)));
-        keycloakMvc.perform(post("/api/v1/auth/password-reset")
+        String unknownResponse = keycloakMvc.perform(post("/api/v1/auth/password-reset")
+                        .contentType("application/json")
+                        .content("{\"login\":\"missing.user\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String knownResponse = keycloakMvc.perform(post("/api/v1/auth/password-reset")
                         .contentType("application/json")
                         .content("{\"login\":\"tech07\",\"reason\":\"Потерял пароль\"}"))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("pending"));
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(JSON.readTree(knownResponse))
+                .isEqualTo(JSON.readTree(unknownResponse));
+        String duplicateResponse = keycloakMvc.perform(post("/api/v1/auth/password-reset")
+                        .contentType("application/json")
+                        .content("{\"login\":\"tech07\",\"reason\":\"Повторный запрос\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(JSON.readTree(duplicateResponse))
+                .isEqualTo(JSON.readTree(unknownResponse));
         org.assertj.core.api.Assertions.assertThat(jdbc.sql("select count(*) from auth.change_request where kind='password_reset' and user_id=:id")
                 .param("id",data.userId("tech07")).query(Long.class).single()).isEqualTo(1);
     }
@@ -161,15 +181,17 @@ class AuthManagementApiTest extends IntegrationTest {
                         .header("X-Dev-User","tech07").header("X-Dev-Roles","technician")
                         .contentType("application/json")
                         .content("""
-                                {"lastName":"Сидоров","reason":"Изменение фамилии"}
+                                {"lastName":"Сидоров","firstName":"Павел","middleName":"Сергеевич","reason":"Изменение ФИО"}
                                 """))
                 .andExpect(status().isAccepted());
         long requestId = latestPersonalRequest();
         when(keycloak.findUsers("tech07")).thenReturn(List.of(json("""
-                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов"}
+                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов",
+                 "attributes":{"middleName":["Петрович"]}}
                 """)));
         when(keycloak.user("kc-tech07")).thenReturn(json("""
-                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов"}
+                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов",
+                 "attributes":{"middleName":["Петрович"]}}
                 """));
         keycloakMvc.perform(patch("/api/v1/change-requests/" + requestId)
                         .header("X-Dev-User","sup01").header("X-Dev-Roles","supervisor")
@@ -182,7 +204,23 @@ class AuthManagementApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.request.reviewedAt").isNotEmpty());
         org.assertj.core.api.Assertions.assertThat(jdbc.sql("select last_name from auth.app_user where login='tech07'")
                 .query(String.class).single()).isEqualTo("Сидоров");
-        verify(keycloak).updateUser(org.mockito.ArgumentMatchers.eq("kc-tech07"),any());
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("select first_name from auth.app_user where login='tech07'")
+                .query(String.class).single()).isEqualTo("Павел");
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("select middle_name from auth.app_user where login='tech07'")
+                .query(String.class).single()).isEqualTo("Сергеевич");
+        var representation = org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(keycloak).updateUser(org.mockito.ArgumentMatchers.eq("kc-tech07"),representation.capture());
+        var savedRepresentation = representation.getValue();
+        org.assertj.core.api.Assertions.assertThat(savedRepresentation.get("lastName")).isEqualTo("Сидоров");
+        org.assertj.core.api.Assertions.assertThat(savedRepresentation.get("firstName")).isEqualTo("Павел");
+        org.assertj.core.api.Assertions.assertThat(savedRepresentation.get("attributes").toString()).contains("Сергеевич");
+        keycloakMvc.perform(get("/api/v1/me")
+                        .header("X-Dev-User","tech07").header("X-Dev-Roles","technician"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastName").value("Сидоров"))
+                .andExpect(jsonPath("$.firstName").value("Павел"))
+                .andExpect(jsonPath("$.middleName").value("Сергеевич"))
+                .andExpect(jsonPath("$.pendingRequests").isEmpty());
     }
 
     @Test
