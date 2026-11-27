@@ -41,6 +41,8 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d   # база, K
 
 На Windows вместо `./mvnw` пишите `mvnw.cmd`.
 
+**Всё в Docker одной командой** (для показа и испытаний, JDK не нужен): `docker compose -f infra/docker-compose.yml --env-file .env --profile app up -d --build`. Как проверить работу по сценариям ПМИ, написано в [docs/teams/data/demo.md](docs/teams/data/demo.md).
+
 При первом запуске Flyway создаёт схему базы и справочники из `src/main/resources/db/migration`.
 
 Данные базы и Keycloak лежат в томах Docker `checklist_pgdata` и `checklist_kcdata` и не пропадают при перезапуске контейнеров. Не запускайте `docker compose down -v`: флаг `-v` удаляет тома. Keycloak загружает realm из `infra/keycloak/realm-checklist.json` только в пустой том, как загрузить его заново после правки файла, написано в `infra/docker-compose.yml`.
