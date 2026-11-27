@@ -24,6 +24,62 @@
   "eventsExpiration": 2592000,
   "enabledEventTypes": ["LOGIN", "LOGIN_ERROR", "LOGOUT"],
   "eventsListeners": ["jboss-logging"],
+  "userProfile": {
+    "unmanagedAttributePolicy": "DISABLED",
+    "attributes": [
+      {
+        "name": "username",
+        "displayName": "${username}",
+        "validations": {
+          "length": { "min": 3, "max": 255 },
+          "username-prohibited-characters": {},
+          "up-username-not-idn-homograph": {}
+        },
+        "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+        "multivalued": false
+      },
+      {
+        "name": "email",
+        "displayName": "${email}",
+        "validations": { "email": {}, "length": { "max": 255 } },
+        "required": { "roles": ["user"] },
+        "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+        "multivalued": false
+      },
+      {
+        "name": "firstName",
+        "displayName": "${firstName}",
+        "validations": {
+          "length": { "max": 255 },
+          "person-name-prohibited-characters": {}
+        },
+        "required": { "roles": ["user"] },
+        "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+        "multivalued": false
+      },
+      {
+        "name": "lastName",
+        "displayName": "${lastName}",
+        "validations": {
+          "length": { "max": 255 },
+          "person-name-prohibited-characters": {}
+        },
+        "required": { "roles": ["user"] },
+        "permissions": { "view": ["admin", "user"], "edit": ["admin", "user"] },
+        "multivalued": false
+      },
+      {
+        "name": "middleName",
+        "displayName": "Отчество",
+        "validations": {
+          "length": { "max": 50 },
+          "person-name-prohibited-characters": {}
+        },
+        "permissions": { "view": ["admin", "user"], "edit": ["admin"] },
+        "multivalued": false
+      }
+    ]
+  },
   "roles": {
     "realm": [
       { "name": "technician", "description": "Техник" },
@@ -72,6 +128,7 @@
     },
     {
       "username": "sup01", "firstName": "Анна", "lastName": "Петрова", "email": "sup01@checklist.local",
+      "attributes": { "middleName": ["Игоревна"] },
       "enabled": true, "emailVerified": true, "realmRoles": ["supervisor"],
       "credentials": [{ "type": "password", "value": "Demo-2026", "temporary": false }]
     },

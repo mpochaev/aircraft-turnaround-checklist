@@ -101,7 +101,10 @@ class AuthManagementApiTest extends IntegrationTest {
         keycloakMvc.perform(post("/api/v1/auth/password-reset")
                         .contentType("application/json").content("{\"login\":\"missing.user\"}"))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"));
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andExpect(jsonPath("$.request").doesNotExist());
     }
 
     @Test
@@ -109,11 +112,28 @@ class AuthManagementApiTest extends IntegrationTest {
         when(keycloak.findUsers("tech07")).thenReturn(List.of(json("""
                 {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов"}
                 """)));
-        keycloakMvc.perform(post("/api/v1/auth/password-reset")
+        String unknownResponse = keycloakMvc.perform(post("/api/v1/auth/password-reset")
+                        .contentType("application/json")
+                        .content("{\"login\":\"missing.user\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        String knownResponse = keycloakMvc.perform(post("/api/v1/auth/password-reset")
                         .contentType("application/json")
                         .content("{\"login\":\"tech07\",\"reason\":\"Потерял пароль\"}"))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.status").value("pending"));
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.message").value("Если учётная запись существует, заявка направлена супервайзеру"))
+                .andExpect(jsonPath("$.id").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(JSON.readTree(knownResponse))
+                .isEqualTo(JSON.readTree(unknownResponse));
+        String duplicateResponse = keycloakMvc.perform(post("/api/v1/auth/password-reset")
+                        .contentType("application/json")
+                        .content("{\"login\":\"tech07\",\"reason\":\"Повторный запрос\"}"))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(JSON.readTree(duplicateResponse))
+                .isEqualTo(JSON.readTree(unknownResponse));
         org.assertj.core.api.Assertions.assertThat(jdbc.sql("select count(*) from auth.change_request where kind='password_reset' and user_id=:id")
                 .param("id",data.userId("tech07")).query(Long.class).single()).isEqualTo(1);
     }

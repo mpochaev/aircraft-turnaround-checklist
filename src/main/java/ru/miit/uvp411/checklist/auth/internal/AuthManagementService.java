@@ -255,7 +255,7 @@ public class AuthManagementService {
         String login = required(request.login(), "login", 3, 50);
         List<JsonNode> users = keycloak.findUsers(login);
         if (users.isEmpty() || !users.getFirst().path("enabled").asBoolean(true)) {
-            return Map.of("status", "pending", "message", "Если учётная запись существует, заявка направлена супервайзеру");
+            return passwordResetAccepted();
         }
         int userId = syncUser(users.getFirst());
         var previous = org.springframework.security.core.context.SecurityContextHolder.getContext();
@@ -263,10 +263,30 @@ public class AuthManagementService {
                 login, null, List.of());
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(anonymousRequestActor);
         try {
-            return createRequest(userId, "password_reset", null, request.reason() == null ? "" : request.reason().trim());
+            createPasswordResetRequest(userId, request.reason() == null ? "" : request.reason().trim());
+            return passwordResetAccepted();
         } finally {
             org.springframework.security.core.context.SecurityContextHolder.setContext(previous);
         }
+    }
+
+    private void createPasswordResetRequest(int userId, String reason) {
+        Long id = jdbc.sql("""
+                insert into auth.change_request (user_id,kind,new_data,reason)
+                values (:uid,'password_reset',null,:reason)
+                on conflict (user_id,kind) where status='pending' do nothing
+                returning id
+                """).param("uid", userId).param("reason", reason.isBlank() ? null : reason)
+                .query(Long.class).optional().orElse(null);
+        if (id != null) {
+            audit.record(new AuditLog.Entry("request_created", "change_request", id, null, null,
+                    Map.of("kind", "password_reset", "reason", reason)));
+        }
+    }
+
+    private static Map<String, Object> passwordResetAccepted() {
+        return Map.of("status", "pending", "message",
+                "Если учётная запись существует, заявка направлена супервайзеру");
     }
 
     @Transactional(readOnly = true)
