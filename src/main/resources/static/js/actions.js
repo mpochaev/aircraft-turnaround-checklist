@@ -18,24 +18,35 @@ export const OPERATION_ACTIONS = {
         label: 'Проблема',
         status: 'problem',
         needsComment: true,
-        confirm: { title: 'Сообщить о проблеме?', ok: 'Сообщить' },
+        commentTitle: (text) => (text ? `Проблема: ${text}` : 'Проблема'),
+        commentLabel: 'Что случилось (обязательно)',
+        commentOk: 'Сообщить',
     },
     resolve: {
         label: 'Решено',
         status: 'in_progress',
         needsComment: true,
         confirm: { title: 'Отметить проблему как решённую?', ok: 'Решено' },
+        commentTitle: () => 'Решение проблемы',
+        commentLabel: 'Комментарий (обязательно)',
+        commentOk: 'Решено',
     },
     not_required: {
         label: 'Не требуется',
         status: 'not_required',
         needsComment: true,
         confirm: { title: 'Отметить «Не требуется»?', ok: 'Подтвердить' },
+        commentTitle: () => 'Не требуется',
+        commentLabel: 'Комментарий (обязательно)',
+        commentOk: 'Подтвердить',
     },
     revert: {
         label: 'Исправить',
         needsComment: true,
         confirm: { title: 'Исправить отметку?', ok: 'Исправить' },
+        commentTitle: () => 'Исправление отметки',
+        commentLabel: 'Комментарий (обязательно)',
+        commentOk: 'Исправить',
         statusFor: (op) => (op.status === 'done' ? 'in_progress' : 'not_started'),
     },
 };
@@ -95,6 +106,23 @@ function enrichActionError(err) {
             .join(', ');
         const base = 'Нельзя подтвердить готовность: не выполнены обязательные операции (MANDATORY_NOT_DONE)';
         err.message = ops ? `${base}: ${ops}` : (err.message && !err.message.startsWith('Ошибка') ? err.message : base);
+    } else if (err.code === 'PREDECESSORS_NOT_DONE') {
+        const ops = (err.details || [])
+            .map((d) => d.message || d.field)
+            .filter(Boolean)
+            .join('; ');
+        err.message = err.message && !err.message.startsWith('Ошибка')
+            ? err.message
+            : (ops ? `Сначала завершите предшественников (PREDECESSORS_NOT_DONE): ${ops}`
+                : 'Сначала завершите предшествующие операции (PREDECESSORS_NOT_DONE)');
+    } else if (err.code === 'DELAY_CODE_REQUIRED') {
+        err.message = err.message && !err.message.startsWith('Ошибка')
+            ? err.message
+            : 'Укажите код задержки при отставании больше 10 минут (DELAY_CODE_REQUIRED)';
+    } else if (err.code === 'COMMENT_REQUIRED') {
+        err.message = err.message && !err.message.startsWith('Ошибка')
+            ? err.message
+            : 'Укажите комментарий (COMMENT_REQUIRED)';
     }
     return err;
 }
@@ -103,6 +131,126 @@ function showActionError(container, err) {
     if (container) {
         showError(container, enrichActionError(err));
     }
+}
+
+export function commentDialog({
+    title = 'Комментарий',
+    label = 'Комментарий (обязательно)',
+    ok = 'Сообщить',
+    cancel = 'Отмена',
+    touch = true,
+} = {}) {
+    return new Promise((resolve) => {
+        const dlg = document.createElement('dialog');
+        dlg.className = touch ? 'dialog touch' : 'dialog';
+        dlg.innerHTML = `
+            <h2>${escapeHtml(title)}</h2>
+            <label class="field">
+                <span>${escapeHtml(label)}</span>
+                <textarea class="textarea" name="comment" rows="4"></textarea>
+            </label>
+            <div class="actions">
+                <button type="button" class="btn" value="cancel">${escapeHtml(cancel)}</button>
+                <button type="button" class="btn btn-primary" value="ok">${escapeHtml(ok)}</button>
+            </div>`;
+        const field = dlg.querySelector('.field');
+        const textarea = dlg.querySelector('textarea');
+        dlg.addEventListener('click', (e) => {
+            const button = e.target.closest('button[value]');
+            if (!button) {
+                return;
+            }
+            if (button.value === 'ok') {
+                const value = textarea.value.trim();
+                if (!value) {
+                    field.classList.add('invalid');
+                    if (!field.querySelector('.field-error')) {
+                        const msg = document.createElement('span');
+                        msg.className = 'field-error';
+                        msg.textContent = 'Укажите комментарий';
+                        field.append(msg);
+                    }
+                    return;
+                }
+                dlg.close('ok');
+                resolve(value);
+                return;
+            }
+            dlg.close('cancel');
+            resolve(null);
+        });
+        dlg.addEventListener('close', () => {
+            if (dlg.returnValue !== 'ok') {
+                resolve(null);
+            }
+            dlg.remove();
+        });
+        document.body.append(dlg);
+        dlg.showModal();
+        textarea.focus();
+    });
+}
+
+export function delayCodeDialog({
+    title = 'Код задержки',
+    text = 'Отставание больше 10 минут. Выберите код задержки.',
+    codes = [],
+    ok = 'Завершить',
+    cancel = 'Отмена',
+    touch = true,
+} = {}) {
+    return new Promise((resolve) => {
+        const dlg = document.createElement('dialog');
+        dlg.className = touch ? 'dialog touch' : 'dialog';
+        dlg.innerHTML = `
+            <h2>${escapeHtml(title)}</h2>
+            ${text ? `<p>${escapeHtml(text)}</p>` : ''}
+            <label class="field">
+                <span>Код задержки</span>
+                <select class="select" name="delayCodeId">
+                    <option value="">Выберите код</option>
+                    ${codes.map((c) => `<option value="${c.id}">${escapeHtml(c.code)}${c.name ? ` — ${escapeHtml(c.name)}` : ''}</option>`).join('')}
+                </select>
+            </label>
+            <div class="actions">
+                <button type="button" class="btn" value="cancel">${escapeHtml(cancel)}</button>
+                <button type="button" class="btn btn-primary" value="ok">${escapeHtml(ok)}</button>
+            </div>`;
+        const field = dlg.querySelector('.field');
+        const select = dlg.querySelector('select');
+        dlg.addEventListener('click', (e) => {
+            const button = e.target.closest('button[value]');
+            if (!button) {
+                return;
+            }
+            if (button.value === 'ok') {
+                if (!select.value) {
+                    field.classList.add('invalid');
+                    if (!field.querySelector('.field-error')) {
+                        const msg = document.createElement('span');
+                        msg.className = 'field-error';
+                        msg.textContent = 'Выберите код задержки';
+                        field.append(msg);
+                    }
+                    return;
+                }
+                dlg.close('ok');
+                resolve(Number(select.value));
+                return;
+            }
+            dlg.close('cancel');
+            resolve(null);
+        });
+        dlg.addEventListener('close', () => {
+            if (dlg.returnValue !== 'ok') {
+                resolve(null);
+            }
+            dlg.remove();
+        });
+        document.body.append(dlg);
+        dlg.showModal();
+        select.focus();
+    });
 }
 
 export function renderActionButtons(actions, { primary = null, className = 'btn', attrs = '' } = {}) {
@@ -119,6 +267,21 @@ export function renderActionButtons(actions, { primary = null, className = 'btn'
         .join('');
 }
 
+async function patchOperation(operationId, body, errorContainer, onDone, { silentCodes = [] } = {}) {
+    try {
+        const result = await api.patch(`/operations/${operationId}`, body);
+        if (onDone) {
+            await onDone(result);
+        }
+        return result;
+    } catch (e) {
+        if (!(e instanceof ApiError && silentCodes.includes(e.code))) {
+            showActionError(errorContainer, e);
+        }
+        throw e;
+    }
+}
+
 export async function runOperationAction({
     operationId,
     action,
@@ -127,6 +290,7 @@ export async function runOperationAction({
     confirmText = '',
     touch = true,
     errorContainer = document.getElementById('page'),
+    delayCodes = null,
     onDone,
 } = {}) {
     const meta = OPERATION_ACTIONS[action];
@@ -136,15 +300,17 @@ export async function runOperationAction({
     const status = meta.statusFor ? meta.statusFor(operation) : meta.status;
     let comment = extra.comment;
     if (meta.needsComment && (comment === undefined || comment === null || comment === '')) {
-        comment = window.prompt('Комментарий (обязательно):') || '';
-        if (!comment.trim()) {
-            if (errorContainer) {
-                showError(errorContainer, new Error('Нужен комментарий'));
-            }
+        comment = await commentDialog({
+            title: meta.commentTitle ? meta.commentTitle(confirmText) : 'Комментарий',
+            label: meta.commentLabel || 'Комментарий (обязательно)',
+            ok: meta.commentOk || 'Сообщить',
+            touch,
+        });
+        if (!comment) {
             return null;
         }
     }
-    if (meta.confirm) {
+    if (meta.confirm && action !== 'problem') {
         const ok = await confirmDialog({
             title: meta.confirm.title,
             text: confirmText,
@@ -160,13 +326,26 @@ export async function runOperationAction({
         body.comment = comment;
     }
     try {
-        const result = await api.patch(`/operations/${operationId}`, body);
-        if (onDone) {
-            await onDone(result);
-        }
-        return result;
+        return await patchOperation(operationId, body, errorContainer, onDone, {
+            silentCodes: action === 'finish' ? ['DELAY_CODE_REQUIRED'] : [],
+        });
     } catch (e) {
-        showActionError(errorContainer, e);
+        if (e instanceof ApiError && e.code === 'DELAY_CODE_REQUIRED' && action === 'finish') {
+            let codes = delayCodes;
+            if (!codes) {
+                const data = await api.get('/ref/delay-codes', { isActive: 'true' });
+                codes = data.items || [];
+            }
+            const delayCodeId = await delayCodeDialog({
+                title: confirmText ? `Завершить: ${confirmText}` : 'Код задержки',
+                codes,
+                touch,
+            });
+            if (!delayCodeId) {
+                return null;
+            }
+            return patchOperation(operationId, { ...body, delayCodeId }, errorContainer, onDone);
+        }
         throw e;
     }
 }
@@ -186,11 +365,13 @@ export async function runTurnaroundAction({
     }
     let cancelReason = extra.cancelReason;
     if (meta.needsReason && (cancelReason === undefined || cancelReason === null || cancelReason === '')) {
-        cancelReason = window.prompt('Причина отмены (обязательно):') || '';
-        if (!cancelReason.trim()) {
-            if (errorContainer) {
-                showError(errorContainer, new Error('Нужна причина отмены'));
-            }
+        cancelReason = await commentDialog({
+            title: 'Отмена оборота',
+            label: 'Причина отмены (обязательно)',
+            ok: 'Отменить',
+            touch,
+        });
+        if (!cancelReason) {
             return null;
         }
     }
