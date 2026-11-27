@@ -208,8 +208,16 @@ function renderTable() {
             button.textContent = column[1] + (sortField === sort ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ' ↕');
             cell.setAttribute('aria-sort', sortField !== sort ? 'none' : sortDirection === 'asc' ? 'ascending' : 'descending');
             button.addEventListener('click', function () {
-                sortDirection = sortField === sort && sortDirection === 'asc' ? 'desc' : 'asc';
-                sortField = sort;
+                if (sortField !== sort) {
+                    sortField = sort;
+                    sortDirection = 'asc';
+                } else if (sortDirection === 'asc') {
+                    sortDirection = 'desc';
+                } else {
+                    sortField = '';
+                    sortDirection = 'asc';
+                }
+
                 resetPage();
             });
             cell.replaceChildren(button);
