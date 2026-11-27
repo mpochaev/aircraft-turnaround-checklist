@@ -181,15 +181,17 @@ class AuthManagementApiTest extends IntegrationTest {
                         .header("X-Dev-User","tech07").header("X-Dev-Roles","technician")
                         .contentType("application/json")
                         .content("""
-                                {"lastName":"Сидоров","reason":"Изменение фамилии"}
+                                {"lastName":"Сидоров","firstName":"Павел","middleName":"Сергеевич","reason":"Изменение ФИО"}
                                 """))
                 .andExpect(status().isAccepted());
         long requestId = latestPersonalRequest();
         when(keycloak.findUsers("tech07")).thenReturn(List.of(json("""
-                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов"}
+                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов",
+                 "attributes":{"middleName":["Петрович"]}}
                 """)));
         when(keycloak.user("kc-tech07")).thenReturn(json("""
-                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов"}
+                {"id":"kc-tech07","username":"tech07","enabled":true,"firstName":"Пётр","lastName":"Иванов",
+                 "attributes":{"middleName":["Петрович"]}}
                 """));
         keycloakMvc.perform(patch("/api/v1/change-requests/" + requestId)
                         .header("X-Dev-User","sup01").header("X-Dev-Roles","supervisor")
@@ -202,7 +204,23 @@ class AuthManagementApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.request.reviewedAt").isNotEmpty());
         org.assertj.core.api.Assertions.assertThat(jdbc.sql("select last_name from auth.app_user where login='tech07'")
                 .query(String.class).single()).isEqualTo("Сидоров");
-        verify(keycloak).updateUser(org.mockito.ArgumentMatchers.eq("kc-tech07"),any());
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("select first_name from auth.app_user where login='tech07'")
+                .query(String.class).single()).isEqualTo("Павел");
+        org.assertj.core.api.Assertions.assertThat(jdbc.sql("select middle_name from auth.app_user where login='tech07'")
+                .query(String.class).single()).isEqualTo("Сергеевич");
+        var representation = org.mockito.ArgumentCaptor.forClass(java.util.Map.class);
+        verify(keycloak).updateUser(org.mockito.ArgumentMatchers.eq("kc-tech07"),representation.capture());
+        var savedRepresentation = representation.getValue();
+        org.assertj.core.api.Assertions.assertThat(savedRepresentation.get("lastName")).isEqualTo("Сидоров");
+        org.assertj.core.api.Assertions.assertThat(savedRepresentation.get("firstName")).isEqualTo("Павел");
+        org.assertj.core.api.Assertions.assertThat(savedRepresentation.get("attributes").toString()).contains("Сергеевич");
+        keycloakMvc.perform(get("/api/v1/me")
+                        .header("X-Dev-User","tech07").header("X-Dev-Roles","technician"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lastName").value("Сидоров"))
+                .andExpect(jsonPath("$.firstName").value("Павел"))
+                .andExpect(jsonPath("$.middleName").value("Сергеевич"))
+                .andExpect(jsonPath("$.pendingRequests").isEmpty());
     }
 
     @Test

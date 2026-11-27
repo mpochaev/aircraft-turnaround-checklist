@@ -344,6 +344,16 @@ public class AuthManagementService {
                 Map<String, Object> rep = mapper.convertValue(kcUser, LinkedHashMap.class);
                 if (data.containsKey("lastName")) rep.put("lastName", data.get("lastName"));
                 if (data.containsKey("firstName")) rep.put("firstName", data.get("firstName"));
+                if (data.containsKey("middleName")) {
+                    Map<String, Object> attrs = new LinkedHashMap<>();
+                    JsonNode oldAttrs = kcUser.path("attributes");
+                    if (oldAttrs.isObject()) oldAttrs.properties().forEach(e ->
+                            attrs.put(e.getKey(), mapper.convertValue(e.getValue(), List.class)));
+                    Object middleName = data.get("middleName");
+                    if (middleName == null || middleName.toString().isBlank()) attrs.remove("middleName");
+                    else attrs.put("middleName", List.of(middleName.toString()));
+                    rep.put("attributes", attrs);
+                }
                 keycloak.updateUser(kcId, rep);
             } else {
                 temporaryPassword = temporaryPassword();
