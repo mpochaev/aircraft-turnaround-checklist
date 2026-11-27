@@ -6,9 +6,11 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -88,7 +90,11 @@ class KeycloakEventImporter {
                 .retrieve()
                 .body(EVENTS);
         List<Record> records = toRecords(events == null ? List.of() : events, after, this::username);
+        int count = 0;
         for (Record r : records) {
+            if (r.value().get("session") != null && loginAlreadyRecorded(r)) {
+                continue;
+            }
             jdbc.sql("""
                             insert into log.action_log (action_time, user_id, login, action_type, entity, new_value, ip)
                             values (:time, (select id from auth.app_user where login = :login), :login, :type, 'user',
@@ -97,8 +103,20 @@ class KeycloakEventImporter {
                     .param("time", r.time()).param("login", r.login()).param("type", r.actionType())
                     .param("value", JSON.writeValueAsString(r.value())).param("ip", r.ip())
                     .update();
+            count++;
         }
-        return records.size();
+        return count;
+    }
+
+    /** Вход в эту сессию Keycloak уже записан: Keycloak пишет LOGIN при каждом открытии страницы с той же сессией. */
+    private boolean loginAlreadyRecorded(Record r) {
+        return jdbc.sql("""
+                        select exists (select 1 from log.action_log
+                                       where action_type = 'login' and action_time > :from
+                                         and new_value ->> 'session' = :session)
+                        """)
+                .param("from", r.time().minusHours(12)).param("session", r.value().get("session"))
+                .query(Boolean.class).single();
     }
 
     /** Время последнего события Keycloak в журнале. Первый раз берём события за последние сутки. */
@@ -124,7 +142,10 @@ class KeycloakEventImporter {
     static List<Record> toRecords(List<Map<String, Object>> events, LocalDateTime after,
                                   Function<String, String> usernameById) {
         List<Record> out = new ArrayList<>();
-        for (Map<String, Object> e : events) {
+        Set<String> sessions = new HashSet<>();
+        List<Map<String, Object>> byTime = new ArrayList<>(events);
+        byTime.sort(Comparator.comparingLong(e -> ((Number) e.get("time")).longValue()));
+        for (Map<String, Object> e : byTime) {
             LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(((Number) e.get("time")).longValue()),
                     ZoneId.systemDefault());
             if (!time.isAfter(after)) {
@@ -138,6 +159,9 @@ class KeycloakEventImporter {
             String type = switch (String.valueOf(e.get("type"))) {
                 case "LOGIN" -> {
                     value.put("result", "сессия открыта");
+                    if (e.get("sessionId") != null) {
+                        value.put("session", String.valueOf(e.get("sessionId")));
+                    }
                     yield "login";
                 }
                 case "LOGOUT" -> {
@@ -150,6 +174,9 @@ class KeycloakEventImporter {
                 }
             };
             value.put("source", "keycloak");
+            if (value.get("session") != null && !sessions.add((String) value.get("session"))) {
+                continue;   // один «Вход» на сессию, повторные LOGIN той же сессии пропускаем
+            }
             out.add(new Record(time, login, type, value, (String) e.get("ipAddress")));
         }
         out.sort(Comparator.comparing(Record::time));
