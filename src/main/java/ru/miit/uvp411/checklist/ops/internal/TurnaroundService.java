@@ -116,14 +116,16 @@ public class TurnaroundService {
         if (request.status() == null && request.technicianId() == null) {
             throw unprocessable("VALIDATION_ERROR", "Укажите status или technicianId", "status", "technicianId");
         }
-        if (request.status() != null && !"cancelled".equals(request.status())) {
+        if (request.status() != null && !"cancelled".equals(request.status()) && !"ready".equals(request.status())) {
             throw new ApiException(HttpStatus.CONFLICT, OpsErrors.INVALID_TRANSITION,
-                    "Для этого запроса допустима только отмена оборота");
+                    "Этот переход оборота пока не поддерживается: доступны отмена и подтверждение готовности");
         }
-        if (request.status() == null && request.cancelReason() != null) {
+        boolean cancelling = "cancelled".equals(request.status());
+        boolean confirmingReady = "ready".equals(request.status());
+        if (!cancelling && request.cancelReason() != null) {
             throw unprocessable("VALIDATION_ERROR", "Причина отмены допустима только при отмене", "cancelReason");
         }
-        if (request.status() != null
+        if (cancelling
                 && (request.cancelReason() == null || request.cancelReason().isBlank()
                 || request.cancelReason().codePointCount(0, request.cancelReason().length()) > 300)) {
             throw unprocessable("VALIDATION_ERROR", "Укажите причину отмены длиной от 1 до 300 символов",
@@ -135,9 +137,15 @@ public class TurnaroundService {
 
         TurnaroundQueries.LockedTurnaround turnaround = queries.lockById(id)
                 .orElseThrow(() -> ApiException.notFound("Оборот"));
-        boolean cancelling = "cancelled".equals(request.status());
         if (cancelling && !"planned".equals(turnaround.status())) {
             throw invalidTransition("Отменить можно только запланированный оборот");
+        }
+        if (confirmingReady && !"in_service".equals(turnaround.status())) {
+            throw invalidTransition("Подтвердить готовность можно только у оборота на обслуживании");
+        }
+        if (confirmingReady && !queries.mandatoryOperationsDone(id)) {
+            throw new ApiException(HttpStatus.CONFLICT, OpsErrors.MANDATORY_NOT_DONE,
+                    "Нельзя подтвердить готовность: не все обязательные операции выполнены");
         }
         if (request.technicianId() != null
                 && ("closed".equals(turnaround.status()) || "cancelled".equals(turnaround.status()))) {
@@ -158,6 +166,27 @@ public class TurnaroundService {
                     Map.of("status", turnaround.status()),
                     Map.of("status", "cancelled", "cancelReason", request.cancelReason()));
         }
+        if (confirmingReady) {
+            queries.markReady(id);
+            audit.turnaround("ready", id, Map.of("status", turnaround.status()), Map.of("status", "ready"));
+        }
+    }
+
+    /**
+     * Действия над оборотом, которые сейчас доступны пользователю (поле allowedActions, task-06-11, раздел 1).
+     * Подключены отмена запланированного оборота и подтверждение готовности после обязательных операций.
+     */
+    public static List<String> allowedActions(String status, int mandatoryDone, int mandatoryTotal, CurrentUser user) {
+        if (!user.can("turnarounds.manage")) {
+            return List.of();
+        }
+        if ("planned".equals(status)) {
+            return List.of("cancelled");
+        }
+        if ("in_service".equals(status) && mandatoryDone == mandatoryTotal) {
+            return List.of("ready");
+        }
+        return List.of();
     }
 
     private static ApiException invalidTransition(String message) {
