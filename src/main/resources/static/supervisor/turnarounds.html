@@ -28,124 +28,306 @@
         <label>Тип ВС <select class="select" name="aircraftTypeId"><option value="">Все</option></select></label>
         <label>Борт <select class="select" name="aircraftId"><option value="">Все</option></select></label>
         <label>Рейс <input class="input" name="flightNumber" inputmode="numeric" pattern="[0-9]{1,4}" size="6"></label>
-        <label>Стоянка от <input class="input" name="standFrom" size="6"></label>
-        <label>до <input class="input" name="standTo" size="6"></label>
-        <label><input type="checkbox" name="onlyIssues"> отставание или проблема</label>
+        <label>Стоянки от <input class="input" name="standFrom" size="6" placeholder="№"></label>
+        <label>до <input class="input" name="standTo" size="6" placeholder="№"></label>
+        <details id="operationFilter">
+            <summary>Операции</summary>
+            <div id="operationChoices"></div>
+        </details>
+        <label><input type="checkbox" name="onlyIssues"> только с отставанием или проблемой</label>
         <button class="btn btn-primary">Показать</button>
         <span class="muted small" id="updated"></span>
     </form>
     <div class="table-wrap">
-        <table class="table">
-            <thead><tr id="columns"></tr></thead>
+        <table class="table compact">
+            <thead id="head"></thead>
             <tbody id="rows"></tbody>
         </table>
     </div>
     <div id="pager"></div>
+    <div class="legend">
+        <span><i class="st-not_started"></i> не начата</span>
+        <span><i class="st-in_progress"></i> в работе</span>
+        <span><i class="st-done"></i> выполнена в срок</span>
+        <span><i class="st-late"></i> отставание до 10 мин</span>
+        <span><i class="st-late_critical"></i> отставание больше 10 мин</span>
+        <span><i class="st-problem"></i> проблема</span>
+        <span><i class="st-not_required"></i> не требуется</span>
+    </div>
 </main>
 <script type="module">
     import { startPage, showError, every } from '/js/layout.js';
     import { api } from '/js/api.js';
-    import { time, today, TURNAROUND_STATUS, OPERATION_STATUS, escapeHtml } from '/js/format.js';
-    import { refSelect, pager } from '/js/ui.js';
+    import { time, today, localIso, TURNAROUND_STATUS, OPERATION_STATUS, operationClass, escapeHtml } from '/js/format.js';
+    import { refSelect, pager, confirmDialog } from '/js/ui.js';
 
-    await startPage({ active: 'turnarounds' });
+    const me = await startPage({ active: 'turnarounds' });
+    const page = document.getElementById('page');
     const form = document.getElementById('filters');
+    const rows = document.getElementById('rows');
+    const head = document.getElementById('head');
     const PAGE_SIZE = 50;
-    form.dateFrom.value = today();
-    form.dateTo.value = today();
-    try {
-        await Promise.all([
-            refSelect(form.airlineId, 'airlines', { label: (r) => `${r.iataCode} — ${r.name}` }),
-            refSelect(form.aircraftTypeId, 'aircraft-types', { label: (r) => r.code }),
-            refSelect(form.aircraftId, 'aircraft', { label: (r) => r.tailNumber }),
-        ]);
-    } catch (e) {
-        showError(document.getElementById('page'), e);
-    }
+    const FIELDS = ['dateFrom', 'dateTo', 'status', 'airlineId', 'aircraftTypeId', 'aircraftId',
+        'flightNumber', 'standFrom', 'standTo'];
+    const storageKey = `supervisor-turnarounds:${me.login}`;
+    const saved = readFilters();
+    const state = {
+        items: [],
+        summary: { problems: 0, delayed: 0 },
+        total: 0,
+        page: 1,
+        operations: [],
+        selectedOperations: saved?.selectedOperations ?? null,
+        requestId: 0,
+    };
 
-    async function load(background, pageNo = 1) {
+    function readFilters() {
         try {
-            const data = await api.get('/turnarounds', {
-                dateFrom: form.dateFrom.value,
-                dateTo: form.dateTo.value,
-                status: form.status.value,
-                airlineId: form.airlineId.value,
-                aircraftTypeId: form.aircraftTypeId.value,
-                aircraftId: form.aircraftId.value,
-                flightNumber: form.flightNumber.value.trim(),
-                standFrom: form.standFrom.value.trim(),
-                standTo: form.standTo.value.trim(),
-                onlyIssues: form.onlyIssues.checked,
-                page: pageNo,
-                size: PAGE_SIZE,
-            }, { background });
-            render(data);
-            pager(document.getElementById('pager'), {
-                page: pageNo, size: PAGE_SIZE, total: data.total, onPage: (p) => load(false, p),
-            });
-            document.getElementById('updated').textContent = `обновлено ${new Date().toLocaleTimeString('ru-RU').slice(0, 5)}`;
-        } catch (e) {
-            showError(document.getElementById('page'), e);
+            return JSON.parse(localStorage.getItem(storageKey) || 'null');
+        } catch {
+            return null;
         }
     }
 
+    function persistFilters() {
+        const values = Object.fromEntries(FIELDS.map((name) => [name, form[name].value]));
+        localStorage.setItem(storageKey, JSON.stringify({
+            ...values,
+            onlyIssues: form.onlyIssues.checked,
+            selectedOperations: state.selectedOperations,
+        }));
+    }
+
+    async function loadAll(dictionary) {
+        const items = [];
+        for (let pageNo = 1; ; pageNo++) {
+            const data = await api.get(`/ref/${dictionary}`, { isActive: 'true', page: pageNo, size: 100 });
+            items.push(...data.items);
+            if (items.length >= data.total || !data.items.length) break;
+        }
+        return items;
+    }
+
+    function selectedOperationCodes() {
+        if (state.selectedOperations === null) {
+            return state.operations.map((operation) => operation.code);
+        }
+        return state.selectedOperations;
+    }
+
+    function renderOperationChoices() {
+        const selected = new Set(selectedOperationCodes());
+        document.getElementById('operationChoices').innerHTML = state.operations.map((operation) => `
+            <label>
+                <input type="checkbox" data-operation="${escapeHtml(operation.code)}" ${selected.has(operation.code) ? 'checked' : ''}>
+                ${escapeHtml(operation.name)}
+            </label>`).join('');
+    }
+
+    function renderHead() {
+        const selected = new Set(selectedOperationCodes());
+        const columns = state.operations.filter((operation) => selected.has(operation.code));
+        head.innerHTML = `<tr>
+            <th>Оборот</th><th>Маршруты</th><th>Борт / тип</th><th>Ст.</th><th>Техник</th>
+            <th>STA</th><th>STD</th><th>Пост.</th>
+            ${columns.map((operation) => `<th title="${escapeHtml(operation.name)}">${escapeHtml(operation.name)}</th>`).join('')}
+            <th>Прогресс</th><th>Статус</th>
+        </tr>`;
+        return columns;
+    }
+
+    function operationText(operation) {
+        if (!operation) {
+            return '—';
+        }
+        if (operation.status === 'problem') {
+            return '! Проблема';
+        }
+        if (operation.status === 'not_required') {
+            return '—';
+        }
+        if (operation.status === 'in_progress') {
+            return `${operation.elapsedMin || 0} / ${operation.durationMin ?? '—'}`;
+        }
+        if (operation.status === 'done') {
+            const delay = operation.delayMin > 0 ? ` +${operation.delayMin}` : '';
+            return `${time(operation.actualEnd) || OPERATION_STATUS.done}${delay}`;
+        }
+        return time(operation.plannedStart) || OPERATION_STATUS[operation.status] || '—';
+    }
+
+    function operationTip(operation, turnaround) {
+        const lines = [
+            `${operation.name} · ${OPERATION_STATUS[operation.status] || operation.status}`,
+            `План: ${time(operation.plannedStart)}–${time(operation.plannedEnd)}`,
+            `Факт: ${time(operation.actualStart) || '—'}–${time(operation.actualEnd) || '—'}`,
+            `Отставание: ${operation.delayMin || 0} мин`,
+            `Код задержки: ${operation.delayCode?.code || '—'}`,
+            `Исполнитель: ${operation.executor?.shortName || turnaround.technician?.shortName || '—'}`,
+            `Комментарий: ${operation.comment || '—'}`,
+        ];
+        return escapeHtml(lines.join('\n'));
+    }
+
+    function renderOperationCell(operation, turnaround) {
+        const css = operation ? operationClass(operation, localIso()) : 'st-not_started';
+        return `<td class="${css} center nowrap" data-tip="${operation ? operationTip(operation, turnaround) : ''}">
+            ${escapeHtml(operationText(operation))}</td>`;
+    }
+
+    function renderStatus(turnaround) {
+        const messages = [
+            escapeHtml(TURNAROUND_STATUS[turnaround.status] || turnaround.status),
+            turnaround.problems > 0 ? '<br>! Проблема' : '',
+            turnaround.atRisk && ['planned', 'in_service'].includes(turnaround.status)
+                ? '<br><b>риск задержки</b>' : '',
+        ].join('');
+        const action = turnaround.allowedActions?.includes('ready')
+            ? `<br><button class="btn btn-primary" type="button" data-ready="${turnaround.id}">Подтвердить готовность</button>`
+            : '';
+        return `${messages}${action}`;
+    }
+
     function render(data) {
-        const items = data.items;
-        const summary = data.summary;
+        state.items = data.items || [];
+        state.summary = data.summary || { problems: 0, delayed: 0 };
+        state.total = Number(data.total || 0);
         document.getElementById('header-counters').innerHTML =
-            `Проблемы <span class="counter">${summary.problems}</span> · отстают <span class="counter">${summary.delayed}</span>`;
-        const operations = [...new Map(items.flatMap((t) => t.operations)
-            .map((op) => [op.operationCode, op])).values()].sort((a, b) => a.seqNo - b.seqNo);
-        document.getElementById('columns').innerHTML = `
-            <th>Оборот</th><th>Маршруты</th><th>Борт / тип</th><th>Стоянка</th><th>Техник</th>
-            <th>STA</th><th>STD</th><th>Постановка</th><th>Прогресс</th><th>Статус</th>
-            ${operations.map((op) => `<th>${escapeHtml(op.operationCode)}</th>`).join('')}`;
-        document.getElementById('rows').innerHTML = items.length ? items.map((t) => {
-            const cells = new Map(t.operations.map((op) => [op.operationCode, op]));
-            return `
-                <tr class="clickable" data-id="${t.id}">
-                    <td class="nowrap">${escapeHtml(t.arrFlight.code)} / ${escapeHtml(t.depFlight.code)}</td>
-                    <td class="nowrap">${escapeHtml(t.arrFlight.route)} → ${escapeHtml(t.depFlight.route)}</td>
-                    <td class="nowrap">${escapeHtml(t.aircraft.tailNumber)} ${escapeHtml(t.aircraft.typeCode)}</td>
-                    <td class="center">${escapeHtml(t.stand)}</td>
-                    <td class="nowrap">${escapeHtml(t.technician.shortName)}</td>
-                    <td class="center">${time(t.arrFlight.sta)}</td>
-                    <td class="center">${time(t.depFlight.std)}</td>
-                    <td class="center">${time(t.onBlockAt) || '—'}</td>
-                    <td class="center">${t.progress.done} / ${t.progress.total}</td>
-                    <td class="${t.problems > 0 ? 'st-problem' : ''}">
-                        ${TURNAROUND_STATUS[t.status]}${t.problems > 0 ? '<br>! Проблема' : ''}
-                        ${t.atRisk ? '<br><b>риск задержки</b>' : ''}
-                    </td>
-                    ${operations.map((column) => operationCell(cells.get(column.operationCode))).join('')}
-                </tr>`;
-        }).join('') : `<tr><td colspan="${10 + operations.length}" class="center muted">Оборотов нет</td></tr>`;
+            `Проблемы <span class="counter">${Number(state.summary.problems ?? 0)}</span>`
+            + ` · отстают <span class="counter">${Number(state.summary.delayed ?? 0)}</span>`;
+        const columns = renderHead();
+        rows.innerHTML = state.items.length ? state.items.map((t) => {
+            const byCode = new Map((t.operations || []).map((operation) => [operation.operationCode, operation]));
+            return `<tr class="clickable" data-id="${t.id}">
+                <td class="nowrap">${escapeHtml(t.arrFlight.code)} / ${escapeHtml(t.depFlight.code)}</td>
+                <td class="nowrap">${escapeHtml(t.arrFlight.route)} → ${escapeHtml(t.depFlight.route)}</td>
+                <td class="nowrap">${escapeHtml(t.aircraft.tailNumber)} ${escapeHtml(t.aircraft.typeCode)}</td>
+                <td class="center">${escapeHtml(t.stand)}</td>
+                <td class="nowrap">${escapeHtml(t.technician.shortName)}</td>
+                <td class="center">${time(t.arrFlight.sta)}</td>
+                <td class="center">${time(t.depFlight.std)}</td>
+                <td class="center">${time(t.onBlockAt) || '—'}</td>
+                ${columns.map((operation) => renderOperationCell(byCode.get(operation.code), t)).join('')}
+                <td class="center nowrap">${t.progress.done} / ${t.progress.total}</td>
+                <td class="center">${renderStatus(t)}</td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="${columns.length + 10}" class="center muted">Оборотов нет</td></tr>`;
+        pager(document.getElementById('pager'), {
+            page: state.page, size: PAGE_SIZE, total: state.total,
+            onPage: (p) => { state.page = p; load(false); },
+        });
     }
 
-    function operationCell(op) {
-        if (!op) return '<td class="center muted">—</td>';
-        const lag = Number(op.lagMin || 0);
-        const timingClass = lag > 10 ? 'st-late_critical' : lag > 0 ? 'st-late' : `st-${op.status}`;
-        const note = [op.executor?.shortName, op.delayCode?.code, op.comment].filter(Boolean).join(' · ');
-        return `<td class="center ${timingClass}"${note ? ` title="${escapeHtml(note)}"` : ''}>
-            ${escapeHtml(OPERATION_STATUS[op.status] || op.status)}
-            <br><small>план ${time(op.plannedStart)} · факт ${time(op.actualEnd) || '—'}${lag ? ` · +${lag} мин` : ''}</small>
-            <br><small>${Number(op.elapsedMin || 0)} мин${op.executor ? ` · ${escapeHtml(op.executor.shortName)}` : ''}${op.delayCode ? ` · ${escapeHtml(op.delayCode.code)}` : ''}</small>
-        </td>`;
+    async function load(background = false) {
+        const requestId = ++state.requestId;
+        const params = {
+            ...Object.fromEntries(FIELDS.map((name) => [name, form[name].value.trim()])),
+            onlyIssues: form.onlyIssues.checked,
+            page: state.page,
+            size: PAGE_SIZE,
+        };
+        try {
+            const data = await api.get('/turnarounds', params, { background });
+            if (requestId !== state.requestId) {
+                return;
+            }
+            const lastPage = Math.max(1, Math.ceil(Number(data.total || 0) / PAGE_SIZE));
+            if (state.page > lastPage) {
+                state.page = lastPage;
+                await load(background);
+                return;
+            }
+            render(data);
+            document.getElementById('updated').textContent =
+                `обновлено ${new Date().toLocaleTimeString('ru-RU').slice(0, 5)}`;
+        } catch (error) {
+            if (requestId === state.requestId) {
+                showError(page, error);
+            }
+        }
     }
 
-    document.getElementById('rows').addEventListener('click', (e) => {
-        const tr = e.target.closest('tr[data-id]');
+    form.dateFrom.value = saved?.dateFrom || today();
+    form.dateTo.value = saved?.dateTo || today();
+    form.status.value = saved?.status || '';
+    form.flightNumber.value = saved?.flightNumber || '';
+    form.standFrom.value = saved?.standFrom || '';
+    form.standTo.value = saved?.standTo || '';
+    form.onlyIssues.checked = saved?.onlyIssues === true;
+    try {
+        const [, , , operations] = await Promise.all([
+            refSelect(form.airlineId, 'airlines',
+                { label: (r) => `${r.iataCode} — ${r.name}`, selected: saved?.airlineId || '' }),
+            refSelect(form.aircraftTypeId, 'aircraft-types', { label: (r) => r.code, selected: saved?.aircraftTypeId || '' }),
+            refSelect(form.aircraftId, 'aircraft', { label: (r) => r.tailNumber, selected: saved?.aircraftId || '' }),
+            loadAll('operations'),
+        ]);
+        state.operations = operations;
+        if (state.selectedOperations !== null) {
+            state.selectedOperations = state.selectedOperations.filter((code) =>
+                state.operations.some((operation) => operation.code === code));
+        }
+        renderOperationChoices();
+    } catch (error) {
+        showError(page, error);
+    }
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        state.page = 1;
+        persistFilters();
+        load(false);
+    });
+    form.addEventListener('change', (event) => {
+        if (event.target.closest('#operationChoices')) {
+            return;
+        }
+        if (['flightNumber', 'standFrom', 'standTo'].includes(event.target.name)) {
+            return;   // текстовые поля применяются кнопкой «Показать» или Enter
+        }
+        state.page = 1;
+        persistFilters();
+        load(false);
+    });
+    document.getElementById('operationChoices').addEventListener('change', (event) => {
+        if (!event.target.closest('input[data-operation]')) {
+            return;
+        }
+        state.selectedOperations = [...document.querySelectorAll('#operationChoices input:checked')]
+            .map((checkbox) => checkbox.dataset.operation);
+        persistFilters();
+        render({ items: state.items, total: state.total, summary: state.summary });
+    });
+
+    rows.addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-ready]');
+        if (button) {
+            event.stopPropagation();
+            const ok = await confirmDialog({ title: 'Подтвердить готовность ВС?', ok: 'Подтвердить' });
+            if (!ok) {
+                return;
+            }
+            button.disabled = true;
+            try {
+                await api.patch(`/turnarounds/${button.dataset.ready}`, { status: 'ready' });
+                await load(false);
+            } catch (error) {
+                button.disabled = false;
+                showError(page, error);
+            }
+            return;
+        }
+        const tr = event.target.closest('tr[data-id]');
         if (tr) {
             location.href = `/technician/checklist.html?id=${tr.dataset.id}`;
         }
     });
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        load(false, 1);
-    });
+
     let first = true;
-    every(15, () => { load(!first); first = false; });
+    every(15, () => {
+        load(!first);
+        first = false;
+    });
 </script>
 </body>
 </html>

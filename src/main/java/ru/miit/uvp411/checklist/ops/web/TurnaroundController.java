@@ -125,6 +125,8 @@ class TurnaroundController {
                 .map(operation -> operationService.withAllowedActions(operation, (String) t.get("status"),
                         (String) t.get("technicianLogin"), user))
                 .toList());
+        body.put("allowedActions", TurnaroundService.allowedActions((String) t.get("status"),
+                number(t.get("mandatoryDone")), number(t.get("mandatoryTotal")), user));
         return body;
     }
 
@@ -149,7 +151,18 @@ class TurnaroundController {
             });
             return operationService.withAllowedActions(fields, status, technicianLogin, user);
         }).toList());
+        int done = 0;
+        int total = -1;   // нет данных о прогрессе: готовность не предлагаем
+        if (row.get("progress") instanceof Map<?, ?> progress) {
+            done = number(progress.get("done"));
+            total = number(progress.get("total"));
+        }
+        row.put("allowedActions", TurnaroundService.allowedActions(status, done, total, user));
         return row;
+    }
+
+    private static int number(Object value) {
+        return value instanceof Number n ? n.intValue() : 0;
     }
 
     private static LocalDate[] period(LocalDate dateFrom, LocalDate dateTo, LocalDate date) {

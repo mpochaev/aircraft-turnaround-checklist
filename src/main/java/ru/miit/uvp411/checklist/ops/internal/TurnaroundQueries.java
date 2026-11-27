@@ -68,7 +68,9 @@ public class TurnaroundQueries {
                        select jsonb_agg(jsonb_build_object(
                            'id', e.id, 'seqNo', e.seq_no, 'operationCode', o.code, 'name', o.name,
                            'status', e.status, 'isMandatory', e.is_mandatory,
-                           'plannedStart', e.planned_start, 'plannedEnd', e.planned_end, 'actualEnd', e.actual_end,
+                           'durationMin', e.duration_min,
+                           'plannedStart', e.planned_start, 'plannedEnd', e.planned_end,
+                           'actualStart', e.actual_start, 'actualEnd', e.actual_end,
                            'elapsedMin', case when e.actual_start is null then 0 else greatest(0,
                                floor(extract(epoch from (coalesce(e.actual_end, localtimestamp) - e.actual_start)) / 60)
                                )::integer end,
@@ -256,6 +258,12 @@ public class TurnaroundQueries {
     void updateTechnician(long turnaroundId, int technicianId) {
         jdbc.sql("update ops.turnaround set technician_id = :technicianId where id = :id")
                 .param("technicianId", technicianId).param("id", turnaroundId).update();
+    }
+
+    /** Подтверждение готовности: in_service -> ready, время готовности ставит сервер. */
+    void markReady(long turnaroundId) {
+        jdbc.sql("update ops.turnaround set status = 'ready', ready_at = localtimestamp where id = :id and status = 'in_service'")
+                .param("id", turnaroundId).update();
     }
 
     void cancel(long turnaroundId, String reason) {
