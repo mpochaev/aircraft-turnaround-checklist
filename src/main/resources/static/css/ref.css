@@ -45,14 +45,40 @@
     margin-left: auto;
 }
 
+.ref-page .table-wrap {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    border-radius: 0;
+}
+
 .ref-page .table {
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .ref-page .table th,
 .ref-page .table td {
     border: var(--border);
     padding: var(--sp-3);
+}
+
+.ref-page .table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--c-surface, #f4f4f4);
+}
+
+.ref-page .table th button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: bold;
+    text-align: inherit;
+    cursor: pointer;
 }
 
 .ref-page tr.selected td {
@@ -68,19 +94,64 @@
     outline-offset: -2px;
 }
 
-.ref-page .table-wrap {
-    border-radius: 0;
+.ref-pagination,
+#pager {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.ref-pagination {
+    justify-content: space-between;
+    margin-top: 18px;
+}
+
+.ref-pagination label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.editor-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 #editor {
     width: min(600px, calc(100vw - 32px));
     max-height: 90vh;
     overflow: auto;
+    border: 1px solid #aaa;
+    border-radius: 14px;
+    box-shadow: 0 18px 60px #0003;
 }
 
-#fields {
+#editor::backdrop {
+    background: #0005;
+}
+
+#editor #form {
     display: grid;
-    gap: var(--sp-3);
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px 20px;
+    align-items: center;
+}
+
+#editor #fields {
+    display: contents;
+}
+
+#editor .editor-header,
+#editor #form-error,
+#editor #fields > .field {
+    grid-column: 1 / -1;
+}
+
+#editor #form-error:empty {
+    display: none;
 }
 
 #fields .field {
@@ -100,6 +171,102 @@
     margin-top: var(--sp-4);
 }
 
+#editor.norm-editor {
+    padding: 18px 24px;
+}
+
+#editor.norm-editor h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+#editor.norm-editor #fields .field {
+    margin: 0;
+    gap: 4px;
+}
+
+#editor.norm-editor #fields .field > span {
+    font-size: 14px;
+}
+
+#editor.norm-editor #fields input:not([type="checkbox"]),
+#editor.norm-editor #fields select:not([multiple]) {
+    box-sizing: border-box;
+    height: 36px;
+    min-height: 0;
+    padding: 6px 10px;
+    font-size: 14px;
+}
+
+#editor.norm-editor #fields select[multiple] {
+    font-size: 14px;
+}
+
+#editor #fields > .field:has([name="isActive"]) {
+    grid-column: 1;
+    order: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+#editor [name="isActive"] {
+    order: -1;
+    margin: 0;
+}
+
+#editor #form > .actions {
+    grid-column: 2;
+    order: 1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0;
+}
+
+#editor:has([name="prevNormIds"]) #form {
+    grid-template-columns: auto auto minmax(0, 1fr);
+}
+
+#editor:has([name="prevNormIds"]) #fields > .field:has([name="isMandatory"]) {
+    grid-column: 1;
+    order: 1;
+}
+
+#editor:has([name="prevNormIds"]) #fields > .field:has([name="isActive"]) {
+    grid-column: 2;
+}
+
+#editor:has([name="prevNormIds"]) #fields > .field:has(input[type="checkbox"]) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+#editor:has([name="prevNormIds"]) input[type="checkbox"] {
+    order: -1;
+    margin: 0;
+}
+
+#editor:has([name="prevNormIds"]) #form > .actions {
+    grid-column: 3;
+}
+
+#editor:has([name="prevNormIds"]) #fields select[multiple] {
+    height: 180px;
+    min-height: 180px;
+}
+
+#state:empty {
+    display: none;
+}
+
 @media (max-width: 1000px) {
     .ref-page .split {
         grid-template-columns: 190px minmax(0, 1fr);
@@ -116,13 +283,14 @@
     }
 }
 
-.ref-page .table-wrap { height: auto; max-height: none; overflow: visible; }
-.ref-page .table { border-collapse: separate; border-spacing: 0; }
-.ref-page .table th { position: sticky; top: 0; z-index: 2; background: var(--c-surface, #f4f4f4); }
-.ref-page .table th button { border: 0; background: transparent; color: inherit; font: inherit; font-weight: bold; cursor: pointer; width: 100%; text-align: inherit; }
-.ref-pagination, #pager { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.ref-pagination { justify-content: space-between; margin-top: 18px; }
-.ref-pagination label { display: flex; align-items: center; gap: 8px; }
-.editor-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
-#editor { border: 1px solid #aaa; border-radius: 14px; box-shadow: 0 18px 60px #0003; }
-#editor::backdrop { background: #0005; }
+@media (max-width: 600px) {
+    #editor:has([name="prevNormIds"]) #form {
+        grid-template-columns: 1fr 1fr;
+        column-gap: 12px;
+    }
+
+    #editor #form > .actions,
+    #editor:has([name="prevNormIds"]) #form > .actions {
+        grid-column: 1 / -1;
+    }
+}

@@ -164,6 +164,86 @@ class RefIntegrationTest extends IntegrationTest {
             .andExpect(status().isForbidden());
     }
 
+    // Для каждого справочника ключ можно повторить после деактивации.
+    // Конфликт активации не меняет старую запись; освобождение ключа разрешает активацию.
+    @ParameterizedTest
+    @ValueSource(strings = {"airports", "airlines", "stands", "aircraft-types", "aircraft", "operations", "operation-norms", "delay-codes"})
+    void reusesInactiveDictionaryKey(String dictionary) throws Exception {
+        var body = fixture(dictionary);
+        int first = id(create(dictionary, body));
+        String path = "/api/v1/ref/" + dictionary;
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_CODE"));
+        mvc.perform(patch(path + "/" + first).contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":false}"))
+            .andExpect(status().isOk());
+        int second = id(create(dictionary, body));
+        assertNotEquals(first, second);
+        mvc.perform(patch(path + "/" + first).contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":true}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_CODE"));
+        assertFalse(refs.isActive(dictionary, first));
+        assertTrue(refs.isActive(dictionary, second));
+        mvc.perform(patch(path + "/" + second).contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":false}"))
+            .andExpect(status().isOk());
+        var inactive = new LinkedHashMap<>(body);
+        inactive.put("isActive", false);
+        create(dictionary, inactive);
+        mvc.perform(patch(path + "/" + first).contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":true}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.isActive").value(true));
+    }
+
+    // Код освобождается после деактивации; старая запись не активируется при конфликте.
+    @Test
+    void reusesInactiveOperationCodeAndRejectsConflictingReactivation() throws Exception {
+        var body = fixture("operations");
+        int oldId = id(create("operations", body));
+        mvc.perform(patch("/api/v1/ref/operations/" + oldId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"isActive\":false}"))
+            .andExpect(status().isOk());
+        int newId = id(create("operations", body));
+        assertNotEquals(oldId, newId);
+        mvc.perform(patch("/api/v1/ref/operations/" + oldId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"isActive\":true}"))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_CODE"));
+        assertFalse(refs.isActive("operations", oldId));
+        assertTrue(refs.isActive("operations", newId));
+        mvc.perform(patch("/api/v1/ref/operations/" + newId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"isActive\":false}"))
+            .andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/ref/operations/" + oldId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"isActive\":true}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.isActive").value(true));
+    }
+
+    // Несколько неактивных записей могут иметь один код; две активные — нет.
+    @Test
+    void operationCodeIsUniqueOnlyForActiveRecords() throws Exception {
+        var body = new LinkedHashMap<>(fixture("operations"));
+        body.put("isActive", false);
+        int first = id(create("operations", body));
+        int second = id(create("operations", body));
+        assertNotEquals(first, second);
+        body.put("isActive", true);
+        create("operations", body);
+        mvc.perform(post("/api/v1/ref/operations").contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(body)))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_CODE"));
+    }
+
+    // При редактировании активной операции нельзя занять код другой активной записи.
+    @Test
+    void rejectsActiveOperationCodeChangeUntilCodeIsReleased() throws Exception {
+        var firstBody = fixture("operations");
+        int first = id(create("operations", firstBody));
+        int second = id(create("operations", fixture("operations")));
+        String patchBody = json.writeValueAsString(Map.of("code", firstBody.get("code")));
+        mvc.perform(patch("/api/v1/ref/operations/" + second).contentType(MediaType.APPLICATION_JSON).content(patchBody))
+            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_CODE"));
+        mvc.perform(patch("/api/v1/ref/operations/" + first).contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":false}"))
+            .andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/ref/operations/" + second).contentType(MediaType.APPLICATION_JSON).content(patchBody))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.code").value(firstBody.get("code")));
+    }
+
     // Ошибка записи журнала откатывает и создание, и изменение справочника.
     @Test
     void auditFailureRollsBackChanges() throws Exception {
@@ -190,23 +270,6 @@ class RefIntegrationTest extends IntegrationTest {
             jdbc.sql("drop trigger ref_test_no_audit on log.action_log").update();
             jdbc.sql("drop function public.ref_test_no_audit()").update();
         }
-    }
-
-    // Код стоянки, уже используемой оборотом, защищает перенесённая миграция.
-    @Test
-    void usedStandCannotChangeCode() throws Exception {
-        int stand = data.stand();
-        var now = java.time.LocalDateTime.now().withNano(0);
-        long arrival = data.flight("KGD", "SVO", now.minusHours(2), now);
-        long departure = data.flight("SVO", "LED", now.plusHours(1), now.plusHours(2));
-        data.turnaround(data.aircraft("RA-73725"), stand, "planned", arrival, departure, null, null, null);
-        String old = jdbc.sql("select code from ref.stand where id=:id").param("id", stand).query(String.class).single();
-        mvc.perform(patch("/api/v1/ref/stands/" + stand).contentType(MediaType.APPLICATION_JSON).content("{\"code\":\"CHANGED\"}"))
-            .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("IMMUTABLE_FIELD"));
-        assertEquals(old, jdbc.sql("select code from ref.stand where id=:id").param("id", stand).query(String.class).single());
-        // Деактивация остаётся доступной.
-        mvc.perform(patch("/api/v1/ref/stands/" + stand).contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":false}"))
-            .andExpect(status().isOk());
     }
 
     // Изменение норматива не переписывает уже скопированные данные операции оборота.

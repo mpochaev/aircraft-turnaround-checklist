@@ -81,7 +81,11 @@ function showError(container, error) {
     const box = document.createElement('div');
     box.className = 'alert alert-error ref-error';
     box.setAttribute('role', 'alert');
-    box.textContent = messages[error.code] || 'Не удалось связаться с сервером или выполнить действие.';
+    if (currentDictionary === 'operations' && error.code === 'DUPLICATE_CODE') {
+        box.textContent = 'Активная операция с таким кодом уже существует. Измените код или сначала деактивируйте другую операцию.';
+    } else {
+        box.textContent = messages[error.code] || 'Не удалось связаться с сервером или выполнить действие.';
+    }
     container.prepend(box);
     console.error('Ошибка запроса', error.code, error.requestId, error.message);
 }
@@ -93,7 +97,7 @@ function renderPager(total) {
     const info = document.createElement('span');
     const first = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
     info.textContent = first + '–' + Math.min(currentPage * pageSize, total)
-        + ' из ' + total + ' · Страница ' + currentPage + ' из ' + pages;
+        + ' из ' + total + '. Страница ' + currentPage + ' из ' + pages;
     container.append(info);
     for (const [text, page, disabled] of [
         ['Назад', currentPage - 1, currentPage === 1],
@@ -130,7 +134,7 @@ async function loadAll(dictionary, params = {}) {
 
 function recordLabel(record) {
     const code = record.iataCode || record.code || record.tailNumber || '';
-    if (code && record.name) return code + ' — ' + record.name;
+    if (code && record.name) return code + ' - ' + record.name;
     return code || record.name || '';
 }
 
@@ -143,6 +147,7 @@ function updateButtons() {
 
 function selectRecord(id) {
     selectedRecord = null;
+
     for (const record of rows) {
         if (record.id === id) selectedRecord = record;
     }
@@ -169,6 +174,7 @@ function cellValue(record, field) {
     if (field === 'airlineId') return record.airline;
     if (typeof record[field] === 'boolean') return record[field] ? 'да' : 'нет';
     if (record[field] == null) return '';
+
     return record[field];
 }
 
@@ -186,13 +192,16 @@ function renderTable() {
     const table = element('table');
     table.replaceChildren();
     const header = table.createTHead().insertRow();
+
     for (const column of columns) {
         const cell = document.createElement('th');
         cell.scope = 'col';
+
         const field = column[0];
         const names = { airportId: 'airport', aircraftTypeId: 'aircraftType', airlineId: 'airline' };
         const sort = names[field] || field;
         cell.textContent = column[1];
+
         if (field !== 'prevNormIds') {
             const button = document.createElement('button');
             button.type = 'button';
@@ -205,6 +214,7 @@ function renderTable() {
             });
             cell.replaceChildren(button);
         }
+
         header.append(cell);
     }
 
@@ -231,7 +241,6 @@ async function loadRecords() {
     const dictionary = currentDictionary;
     selectedRecord = null;
     updateButtons();
-    element('state').textContent = 'Загрузка…';
 
     try {
         const params = {
@@ -241,6 +250,7 @@ async function loadRecords() {
             size: pageSize,
             sort: sortField, direction: sortDirection
         };
+
         if (dictionary === 'operation-norms' && element('aircraft-type').value) {
             params.aircraftTypeId = element('aircraft-type').value;
         }
@@ -250,7 +260,9 @@ async function loadRecords() {
         }
         const data = await api.get('/ref/' + dictionary, params);
         let norms = [];
+
         if (version !== loadVersion) return;
+
         if (dictionary === 'operation-norms') {
             norms = await loadAll(dictionary, {
                 isActive: 'all', aircraftTypeId: params.aircraftTypeId
@@ -264,11 +276,15 @@ async function loadRecords() {
         }
         rows = data.items;
         normRows = norms;
+
         renderTable();
-        element('state').textContent = 'Всего записей: ' + data.total;
+
+        element('state').textContent = '';
+
         renderPager(data.total);
     } catch (error) {
         if (version !== loadVersion) return;
+
         rows = [];
         renderTable();
         element('state').textContent = 'Не удалось загрузить записи';
@@ -297,14 +313,17 @@ function switchDictionary(name) {
 
 async function fillPredecessors(existing = []) {
     const select = element('form').elements.namedItem('prevNormIds');
+
     if (!select) return;
 
     const version = ++predecessorsVersion;
     const typeId = element('form').elements.namedItem('aircraftTypeId').value;
+
     select.disabled = true;
     element('save').disabled = true;
 
     let norms = [];
+
     if (typeId) {
         norms = await loadAll('operation-norms', { aircraftTypeId: typeId, isActive: 'all' });
     }
@@ -316,7 +335,9 @@ async function fillPredecessors(existing = []) {
         if (!norm.isActive && !existing.includes(norm.id)) continue;
 
         let title = norm.seqNo + '. ' + norm.operationName;
+
         if (!norm.isActive) title += ' (неактивен)';
+
         const option = new Option(title, norm.id);
         option.selected = existing.includes(norm.id);
         select.add(option);
@@ -373,6 +394,10 @@ async function createInput(field, record, session) {
 async function openEditor(record = null) {
     const session = ++editorVersion;
     const dictionary = currentDictionary;
+    element('editor').classList.toggle(
+        'norm-editor',
+        dictionary === 'operation-norms'
+    );
     editingRecord = record;
     const action = record ? 'Изменить' : 'Добавить';
     element('editor-title').textContent = action + ': ' + dictionaries[dictionary].title;
@@ -383,7 +408,9 @@ async function openEditor(record = null) {
 
     try {
         const fields = dictionaries[dictionary].fields.slice();
+
         if (record) fields.push(['isActive', 'Активна', 'boolean']);
+
         for (const field of fields) {
             const input = await createInput(field, record, session);
             if (!input || session !== editorVersion || !element('editor').open) return;
@@ -392,17 +419,21 @@ async function openEditor(record = null) {
             const title = document.createElement('span');
             title.textContent = field[1];
             wrapper.append(title, input);
+
             if (field[2] === 'multiple') {
                 const hint = document.createElement('span');
                 hint.className = 'muted small';
-                hint.textContent = 'Без выбора — после постановки ВС. Ctrl / Cmd — выбрать несколько.';
+                hint.textContent = 'Без выбора - после постановки ВС. Ctrl / Cmd - выбрать несколько.';
                 wrapper.append(hint);
             }
+
             element('fields').append(wrapper);
         }
         if (dictionary === 'operation-norms') {
             await fillPredecessors(record ? record.prevNormIds : []);
+
             if (session !== editorVersion || !element('editor').open) return;
+
             element('form').elements.namedItem('aircraftTypeId')
                 .addEventListener('change', async function () {
                     try { await fillPredecessors(); }
