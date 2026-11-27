@@ -4,6 +4,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import tools.jackson.databind.JsonNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +16,8 @@ import ru.miit.uvp411.checklist.shared.security.PermissionResolver;
 
 @Service
 class AuthService implements AuthApi {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final JdbcClient jdbc;
     private final KeycloakAdminClient keycloak;
@@ -49,6 +54,9 @@ class AuthService implements AuthApi {
 
     @Override
     public Optional<UserInfo> findUser(String login) {
+        if (!devMode) {
+            refreshProfileFromKeycloak(login);
+        }
         return jdbc.sql("""
                         select id, login, last_name, first_name, middle_name, is_active
                         from auth.app_user where login = :login
@@ -57,5 +65,30 @@ class AuthService implements AuthApi {
                 .query((rs, n) -> new UserInfo(rs.getInt("id"), rs.getString("login"), rs.getString("last_name"),
                         rs.getString("first_name"), rs.getString("middle_name"), rs.getBoolean("is_active")))
                 .optional();
+    }
+
+    private void refreshProfileFromKeycloak(String login) {
+        try {
+            keycloak.findUsers(login).stream().findFirst().ifPresent(this::syncUser);
+        } catch (RuntimeException e) {
+            log.warn("Could not refresh current user's profile from Keycloak; using local data", e);
+        }
+    }
+
+    private void syncUser(JsonNode kc) {
+        String username = kc.path("username").asText();
+        if (username.isBlank()) return;
+        String middleName = kc.path("attributes").path("middleName").isArray()
+                ? kc.path("attributes").path("middleName").path(0).asText(null) : null;
+        jdbc.sql("""
+                        insert into auth.app_user (login,last_name,first_name,middle_name,is_active,keycloak_id)
+                        values (:login,:last,:first,:middle,:active,:kid)
+                        on conflict (login) do update set last_name=excluded.last_name, first_name=excluded.first_name,
+                        middle_name=excluded.middle_name, is_active=excluded.is_active, keycloak_id=excluded.keycloak_id
+                        """)
+                .param("login", username).param("last", kc.path("lastName").asText(""))
+                .param("first", kc.path("firstName").asText("")).param("middle", middleName)
+                .param("active", kc.path("enabled").asBoolean(true)).param("kid", kc.path("id").asText(null))
+                .update();
     }
 }
