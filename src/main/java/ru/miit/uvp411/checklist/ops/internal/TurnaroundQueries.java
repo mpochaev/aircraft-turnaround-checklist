@@ -260,6 +260,16 @@ public class TurnaroundQueries {
                 .param("technicianId", technicianId).param("id", turnaroundId).update();
     }
 
+    /** У оборота есть обязательные операции, и все они выполнены. */
+    boolean allMandatoryOperationsDone(long turnaroundId) {
+        return Boolean.TRUE.equals(jdbc.sql("""
+                        select count(*) > 0 and count(*) filter (where status <> 'done') = 0
+                        from ops.operation_exec
+                        where turnaround_id = :id and is_mandatory
+                        """)
+                .param("id", turnaroundId).query(Boolean.class).single());
+    }
+
     /** Подтверждение готовности: in_service -> ready, время готовности ставит сервер. */
     void markReady(long turnaroundId) {
         jdbc.sql("update ops.turnaround set status = 'ready', ready_at = localtimestamp where id = :id and status = 'in_service'")

@@ -19,11 +19,13 @@ class FinishHandler implements OperationActionHandler {
     private final OperationQueries queries;
     private final RefApi ref;
     private final OpsAudit audit;
+    private final TurnaroundQueries turnarounds;
 
-    FinishHandler(OperationQueries queries, RefApi ref, OpsAudit audit) {
+    FinishHandler(OperationQueries queries, RefApi ref, OpsAudit audit, TurnaroundQueries turnarounds) {
         this.queries = queries;
         this.ref = ref;
         this.audit = audit;
+        this.turnarounds = turnarounds;
     }
 
     @Override
@@ -57,6 +59,21 @@ class FinishHandler implements OperationActionHandler {
             audit.operation("delay_code", operation.id(), context.turnaround().id(),
                     before, Map.of("delayCodeId", delayCodeId));
         }
+        completeTurnaroundWhenMandatoryDone(context.turnaround().id());
+    }
+
+    /**
+     * После последней обязательной операции оборот сам переходит in_service -> ready,
+     * событие «ready» пишется в журнал в той же транзакции. Ручное подтверждение супервайзером остаётся.
+     */
+    private void completeTurnaroundWhenMandatoryDone(long turnaroundId) {
+        TurnaroundQueries.LockedTurnaround turnaround = turnarounds.lockById(turnaroundId)
+                .orElseThrow(() -> new IllegalStateException("Оборот не найден при автоматическом переходе в ready"));
+        if (!"in_service".equals(turnaround.status()) || !turnarounds.allMandatoryOperationsDone(turnaroundId)) {
+            return;
+        }
+        turnarounds.markReady(turnaroundId);
+        audit.turnaround("ready", turnaroundId, Map.of("status", turnaround.status()), Map.of("status", "ready"));
     }
 
     private static Map<String, Object> values(String status, LocalDateTime actualEnd, Integer executorId,

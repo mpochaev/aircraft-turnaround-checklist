@@ -24,7 +24,6 @@
         </div>
         <div class="cl-head-actions">
             <button type="button" class="btn btn-wide" id="onBlock" data-action="on_block" disabled>Постановка ВС</button>
-            <button type="button" class="btn btn-wide" id="readyBtn" data-action="ready" disabled>Подтвердить готовность</button>
         </div>
     </div>
     <table class="table">
@@ -141,16 +140,12 @@
 
     function syncTurnaroundButtons(t) {
         const onBlock = document.getElementById('onBlock');
-        const readyBtn = document.getElementById('readyBtn');
         const offBlock = document.getElementById('offBlock');
         const canOn = actionAllowed(t, ['on_block', 'in_service']);
-        const canReady = actionAllowed(t, ['ready']);
         const canOff = actionAllowed(t, ['off_block', 'closed']);
         onBlock.disabled = !canOn;
-        readyBtn.disabled = !canReady;
         offBlock.disabled = !canOff;
         onBlock.title = canOn ? '' : 'Доступна в статусе «Запланирован»';
-        readyBtn.title = canReady ? '' : 'Доступна в статусе «Обслуживание», когда выполнены обязательные операции';
         offBlock.title = canOff ? '' : 'Доступна после подтверждения готовности';
         document.getElementById('offHint').style.display = canOff ? 'none' : '';
     }

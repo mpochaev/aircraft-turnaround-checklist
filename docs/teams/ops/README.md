@@ -43,7 +43,7 @@
 | `GET /turnarounds` | вложенные рейсы/ВС/техник и операции, `progress`, `atRisk`, `summary`, `allowedActions` оборота; фильтры и пагинация; экран супервайзера | 7.3 | 43, 44 |
 | `POST /turnarounds` | нормативы через `RefApi.activeNorms`, активность через `RefApi.isActive`, план по зависимостям | 7.4 | 23–26 |
 | `GET /turnarounds/{id}` | операции с `executor`, `waitsFor`, `elapsedMin`, `delayMin` и `allowedActions`; действия оборота (`ready`, `cancelled`) | 7.5 | |
-| `PATCH /turnarounds/{id}` | отмена с обязательной причиной, замена активного техника, подтверждение `ready` супервайзером после обязательных операций (иначе `409 MANDATORY_NOT_DONE`); всё журналируется. Постановка и отправление ещё не подключены | 7.6 | 43 |
+| `PATCH /turnarounds/{id}` | отмена с обязательной причиной, замена активного техника, ручное подтверждение `ready` супервайзером (без обязательных операций `409 MANDATORY_NOT_DONE`); после последней обязательной операции оборот переходит в `ready` автоматически; всё журналируется. Постановка и отправление ещё не подключены | 7.6 | 43 |
 | `PATCH /operations/{id}` | переходы по рисунку А.3 ЧТЗ; ошибки `PREDECESSORS_NOT_DONE`, `DELAY_CODE_REQUIRED`, `MANDATORY_OPERATION`, `COMMENT_REQUIRED` | 7.7 | 28–33, 39–42 |
 
 ### Контракт рейса и поиска

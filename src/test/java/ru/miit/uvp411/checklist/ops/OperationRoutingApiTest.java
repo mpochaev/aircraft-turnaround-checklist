@@ -224,8 +224,31 @@ class OperationRoutingApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.operation.status", is("done")))
                 .andExpect(jsonPath("$.operation.actualEnd").isNotEmpty())
                 .andExpect(jsonPath("$.operation.executor.id", is(data.userId("tech07"))))
-                .andExpect(jsonPath("$.turnaround.progress.done", is(1)));
+                .andExpect(jsonPath("$.turnaround.progress.done", is(1)))
+                .andExpect(jsonPath("$.turnaround.status", is("ready")));
         assertThat(logActions(fixture.operation())).containsExactly("op_finish");
+        assertThat(turnaroundLogActions(fixture.turnaround())).containsExactly("ready");
+    }
+
+    @Test
+    void turnaroundBecomesReadyOnlyAfterEveryMandatoryOperationIsDone() throws Exception {
+        Fixture fixture = operation("in_service", "in_progress");
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        long secondOperation = data.operation(fixture.turnaround(), "CLEAN", "in_progress",
+                now.minusMinutes(2), now.plusMinutes(10), null, null);
+
+        mvc.perform(technicianPatch(fixture.operation(), "{\"status\":\"done\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.turnaround.status", is("in_service")))
+                .andExpect(jsonPath("$.turnaround.progress.done", is(1)))
+                .andExpect(jsonPath("$.turnaround.progress.total", is(2)));
+
+        mvc.perform(technicianPatch(secondOperation, "{\"status\":\"done\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.turnaround.status", is("ready")))
+                .andExpect(jsonPath("$.turnaround.progress.done", is(2)))
+                .andExpect(jsonPath("$.turnaround.progress.total", is(2)));
+        assertThat(turnaroundLogActions(fixture.turnaround())).containsExactly("ready");
     }
 
     @Test
@@ -365,6 +388,11 @@ class OperationRoutingApiTest extends IntegrationTest {
     private long logCount(long id) {
         return jdbc.sql("select count(*) from log.action_log where entity = 'operation_exec' and entity_id = :id")
                 .param("id", id).query(Long.class).single();
+    }
+
+    private List<String> turnaroundLogActions(long id) {
+        return jdbc.sql("select action_type from log.action_log where entity = 'turnaround' and entity_id = :id")
+                .param("id", id).query(String.class).list();
     }
 
     private List<String> logActions(long id) {
