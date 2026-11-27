@@ -16,74 +16,305 @@
     </div>
     <div class="toolbar">
         <label>Дата <input type="date" class="input" id="date"></label>
-        <label><input type="checkbox" id="onlyLate"> только с риском задержки или проблемой</label>
+        <label>Стоянки от <input type="number" class="input" id="standFrom" min="0" placeholder="№"></label>
+        <label>до <input type="number" class="input" id="standTo" min="0" placeholder="№"></label>
+        <label>Авиакомпания
+            <select class="select" id="airlineId"><option value="">Все</option></select>
+        </label>
+        <details id="operationFilter">
+            <summary>Операции</summary>
+            <div id="operationChoices"></div>
+        </details>
+        <label><input type="checkbox" id="onlyIssues"> только с отставанием или проблемой</label>
         <span class="muted small" id="updated"></span>
     </div>
     <div class="table-wrap">
-        <table class="table">
-            <thead>
-            <tr>
-                <th>Оборот</th><th>Маршрут</th><th>Борт / тип</th><th>Стоянка</th><th>Техник</th>
-                <th>STA</th><th>STD</th><th>Постановка</th><th>Прогресс</th><th>Статус</th>
-            </tr>
-            </thead>
+        <table class="table compact">
+            <thead id="head"></thead>
             <tbody id="rows"></tbody>
         </table>
     </div>
-    <p class="wip">Столбцы по каждой операции, окно ячейки («Решено», «Исправить отметку», код задержки) и подтверждение
-        готовности делает команда «Бизнес-логика»: спецификация API, разделы 7.3, 7.6, 7.7 и 10.5.</p>
+    <div class="pager hidden" id="pager"></div>
+    <div class="legend">
+        <span><i class="st-not_started"></i> не начата</span>
+        <span><i class="st-in_progress"></i> в работе</span>
+        <span><i class="st-done"></i> выполнена в срок</span>
+        <span><i class="st-late"></i> отставание до 10 мин</span>
+        <span><i class="st-late_critical"></i> отставание больше 10 мин</span>
+        <span><i class="st-problem"></i> проблема</span>
+        <span><i class="st-not_required"></i> не требуется</span>
+    </div>
 </main>
 <script type="module">
     import { startPage, showError, every } from '/js/layout.js';
     import { api } from '/js/api.js';
-    import { time, today, TURNAROUND_STATUS, escapeHtml } from '/js/format.js';
+    import { time, today, localIso, TURNAROUND_STATUS, OPERATION_STATUS, operationClass, escapeHtml } from '/js/format.js';
 
-    await startPage({ active: 'turnarounds' });
+    const me = await startPage({ active: 'turnarounds' });
     const dateInput = document.getElementById('date');
-    const onlyLate = document.getElementById('onlyLate');
-    dateInput.value = today();
+    const standFrom = document.getElementById('standFrom');
+    const standTo = document.getElementById('standTo');
+    const airlineSelect = document.getElementById('airlineId');
+    const onlyIssues = document.getElementById('onlyIssues');
+    const rows = document.getElementById('rows');
+    const head = document.getElementById('head');
+    const pager = document.getElementById('pager');
+    const pageSize = 50;
+    const storageKey = `supervisor-turnarounds:${me.login}`;
+    const saved = readFilters();
+    const state = {
+        items: [],
+        summary: { problems: 0 },
+        total: 0,
+        page: 1,
+        operations: [],
+        selectedOperations: saved?.selectedOperations ?? null,
+        requestId: 0,
+    };
 
-    async function load(background) {
+    dateInput.value = saved?.date || today();
+    standFrom.value = saved?.standFrom || '';
+    standTo.value = saved?.standTo || '';
+    onlyIssues.checked = saved?.onlyIssues === true;
+
+    function readFilters() {
         try {
-            const data = await api.get('/turnarounds', { date: dateInput.value }, { background });
-            render(data.items);
-            document.getElementById('updated').textContent = `обновлено ${new Date().toLocaleTimeString('ru-RU').slice(0, 5)}`;
-        } catch (e) {
-            showError(document.getElementById('page'), e);
+            return JSON.parse(localStorage.getItem(storageKey) || 'null');
+        } catch {
+            return null;
         }
     }
 
-    function render(items) {
-        const problems = items.reduce((s, t) => s + (t.problems || 0), 0);
-        document.getElementById('header-counters').innerHTML = `Проблемы <span class="counter">${problems}</span>`;
-        const shown = onlyLate.checked ? items.filter((t) => t.delayRisk || t.problems > 0) : items;
-        document.getElementById('rows').innerHTML = shown.length ? shown.map((t) => `
-            <tr class="clickable" data-id="${t.id}">
-                <td class="nowrap">${escapeHtml(t.airline)} ${escapeHtml(t.arrNumber)} / ${escapeHtml(t.depNumber)}</td>
-                <td class="nowrap">${escapeHtml(t.arrFrom)} → ${escapeHtml(t.depTo)}</td>
-                <td class="nowrap">${escapeHtml(t.aircraft)} ${escapeHtml(t.aircraftType)}</td>
-                <td class="center">${escapeHtml(t.stand)}</td>
-                <td class="nowrap">${escapeHtml(t.technician)}</td>
-                <td class="center">${time(t.sta)}</td>
-                <td class="center">${time(t.std)}</td>
-                <td class="center">${time(t.onBlockAt) || '—'}</td>
-                <td class="center">${t.mandatoryDone} / ${t.mandatoryTotal}</td>
-                <td class="${t.problems > 0 ? 'st-problem' : ''}">
-                    ${TURNAROUND_STATUS[t.status]}${t.problems > 0 ? '<br>! Проблема' : ''}${t.delayRisk && ['planned', 'in_service'].includes(t.status) ? '<br><b>риск задержки</b>' : ''}
-                </td>
-            </tr>`).join('') : '<tr><td colspan="10" class="center muted">Оборотов нет</td></tr>';
+    function persistFilters() {
+        localStorage.setItem(storageKey, JSON.stringify({
+            date: dateInput.value,
+            standFrom: standFrom.value,
+            standTo: standTo.value,
+            airlineId: airlineSelect.value,
+            onlyIssues: onlyIssues.checked,
+            selectedOperations: state.selectedOperations,
+        }));
     }
 
-    document.getElementById('rows').addEventListener('click', (e) => {
-        const tr = e.target.closest('tr[data-id]');
+    function selectedOperationCodes() {
+        if (state.selectedOperations === null) {
+            return state.operations.map((operation) => operation.code);
+        }
+        return state.selectedOperations;
+    }
+
+    function renderOperationChoices() {
+        const selected = new Set(selectedOperationCodes());
+        document.getElementById('operationChoices').innerHTML = state.operations.map((operation) => `
+            <label>
+                <input type="checkbox" data-operation="${escapeHtml(operation.code)}" ${selected.has(operation.code) ? 'checked' : ''}>
+                ${escapeHtml(operation.name)}
+            </label>`).join('');
+    }
+
+    function renderHead() {
+        const selected = new Set(selectedOperationCodes());
+        const columns = state.operations.filter((operation) => selected.has(operation.code));
+        head.innerHTML = `<tr>
+            <th>Оборот</th><th>Борт / тип</th><th>Ст.</th><th>Пост.</th>
+            ${columns.map((operation) => `<th title="${escapeHtml(operation.name)}">${escapeHtml(operation.name)}</th>`).join('')}
+            <th>Прогресс</th><th>Статус</th>
+        </tr>`;
+        return columns;
+    }
+
+    function operationText(operation) {
+        if (!operation) {
+            return '—';
+        }
+        if (operation.status === 'problem') {
+            return '! Проблема';
+        }
+        if (operation.status === 'not_required') {
+            return '—';
+        }
+        if (operation.status === 'in_progress') {
+            return `${operation.elapsedMin || 0} / ${operation.durationMin}`;
+        }
+        if (operation.status === 'done') {
+            const delay = operation.delayMin > 0 ? ` +${operation.delayMin}` : '';
+            return `${time(operation.actualEnd) || OPERATION_STATUS.done}${delay}`;
+        }
+        return time(operation.plannedStart) || OPERATION_STATUS[operation.status] || '—';
+    }
+
+    function operationTip(operation, turnaround) {
+        const lines = [
+            `${operation.name} · ${OPERATION_STATUS[operation.status] || operation.status}`,
+            `План: ${time(operation.plannedStart)}–${time(operation.plannedEnd)}`,
+            `Факт: ${time(operation.actualStart) || '—'}–${time(operation.actualEnd) || '—'}`,
+            `Отставание: ${operation.delayMin || 0} мин`,
+            `Код задержки: ${operation.delayCode || '—'}`,
+            `Техник: ${turnaround.technician || '—'}`,
+            `Комментарий: ${operation.comment || '—'}`,
+        ];
+        return escapeHtml(lines.join('\n'));
+    }
+
+    function renderOperationCell(operation, turnaround) {
+        const status = operation?.status || 'not_started';
+        const css = operation ? operationClass(operation, localIso()) : 'st-not_started';
+        return `<td class="${css} center nowrap" data-tip="${operation ? operationTip(operation, turnaround) : ''}">
+            ${escapeHtml(operationText(operation))}</td>`;
+    }
+
+    function renderStatus(turnaround) {
+        const status = TURNAROUND_STATUS[turnaround.status] || turnaround.status;
+        const messages = [
+            escapeHtml(status),
+            turnaround.problems > 0 ? '<br>! Проблема' : '',
+            turnaround.delayRisk && ['planned', 'in_service'].includes(turnaround.status)
+                ? '<br><b>риск задержки</b>' : '',
+        ].join('');
+        const action = turnaround.allowedActions?.includes('ready')
+            ? `<br><button class="btn btn-primary" type="button" data-ready="${turnaround.id}">Подтвердить готовность</button>`
+            : '';
+        return `${messages}${action}`;
+    }
+
+    function render(data) {
+        state.items = data.items || [];
+        state.summary = data.summary || { problems: 0 };
+        state.total = Number(data.total || 0);
+        document.getElementById('header-counters').innerHTML =
+            `Проблемы <span class="counter">${Number(state.summary.problems ?? 0)}</span>`;
+        const columns = renderHead();
+        rows.innerHTML = state.items.length ? state.items.map((turnaround) => {
+            const byCode = new Map((turnaround.operations || []).map((operation) => [operation.operationCode, operation]));
+            const departureAirline = turnaround.depAirline && turnaround.depAirline !== turnaround.airline
+                ? `${escapeHtml(turnaround.depAirline)} ` : '';
+            return `<tr class="clickable" data-id="${turnaround.id}">
+                <td class="nowrap">${escapeHtml(turnaround.airline)} ${escapeHtml(turnaround.arrNumber)} / ${departureAirline}${escapeHtml(turnaround.depNumber)}</td>
+                <td class="nowrap">${escapeHtml(turnaround.aircraft)} ${escapeHtml(turnaround.aircraftType)}</td>
+                <td class="center">${escapeHtml(turnaround.stand)}</td>
+                <td class="center">${time(turnaround.onBlockAt) || '—'}</td>
+                ${columns.map((operation) => renderOperationCell(byCode.get(operation.code), turnaround)).join('')}
+                <td class="center nowrap">${turnaround.mandatoryDone} / ${turnaround.mandatoryTotal}</td>
+                <td class="center">${renderStatus(turnaround)}</td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="${columns.length + 6}" class="center muted">Оборотов нет</td></tr>`;
+        const pages = Math.max(1, Math.ceil(state.total / pageSize));
+        if (pages > 1) {
+            pager.classList.remove('hidden');
+            pager.innerHTML = `
+                <button class="btn" type="button" data-page="${state.page - 1}" ${state.page <= 1 ? 'disabled' : ''}>Назад</button>
+                <span>Страница ${state.page} из ${pages} · ${state.total} оборотов</span>
+                <button class="btn" type="button" data-page="${state.page + 1}" ${state.page >= pages ? 'disabled' : ''}>Далее</button>`;
+        } else {
+            pager.classList.add('hidden');
+            pager.innerHTML = '';
+        }
+    }
+
+    async function load(background = false) {
+        const requestId = ++state.requestId;
+        const params = {
+            date: dateInput.value,
+            standFrom: standFrom.value,
+            standTo: standTo.value,
+            airlineId: airlineSelect.value,
+            onlyIssues: onlyIssues.checked ? 'true' : '',
+            page: String(state.page),
+            size: String(pageSize),
+        };
+        try {
+            const data = await api.get('/turnarounds', params, { background });
+            if (requestId !== state.requestId) {
+                return;
+            }
+            const lastPage = Math.max(1, Math.ceil(Number(data.total || 0) / pageSize));
+            if (state.page > lastPage) {
+                state.page = lastPage;
+                await load(background);
+                return;
+            }
+            render(data);
+            document.getElementById('updated').textContent =
+                `обновлено ${new Date().toLocaleTimeString('ru-RU').slice(0, 5)}`;
+        } catch (error) {
+            if (requestId === state.requestId) {
+                showError(document.getElementById('page'), error);
+            }
+        }
+    }
+
+    try {
+        const [airlines, operations] = await Promise.all([
+            api.get('/ref/airlines'),
+            api.get('/ref/operations'),
+        ]);
+        state.operations = operations.items;
+        airlineSelect.innerHTML += airlines.items.map((airline) =>
+            `<option value="${airline.id}">${escapeHtml(airline.iataCode)} — ${escapeHtml(airline.name)}</option>`
+        ).join('');
+        airlineSelect.value = saved?.airlineId || '';
+        if (state.selectedOperations !== null) {
+            state.selectedOperations = state.selectedOperations.filter((code) =>
+                state.operations.some((operation) => operation.code === code));
+        }
+        renderOperationChoices();
+        persistFilters();
+    } catch (error) {
+        showError(document.getElementById('page'), error);
+    }
+
+    for (const control of [dateInput, standFrom, standTo, airlineSelect, onlyIssues]) {
+        control.addEventListener('change', () => {
+            state.page = 1;
+            persistFilters();
+            load(false);
+        });
+    }
+    document.getElementById('operationChoices').addEventListener('change', (event) => {
+        const input = event.target.closest('input[data-operation]');
+        if (!input) {
+            return;
+        }
+        state.selectedOperations = [...document.querySelectorAll('#operationChoices input:checked')]
+            .map((checkbox) => checkbox.dataset.operation);
+        persistFilters();
+        render({ items: state.items, total: state.total, summary: state.summary });
+    });
+
+    pager.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-page]');
+        if (!button || button.disabled) {
+            return;
+        }
+        state.page = Number(button.dataset.page);
+        load(false);
+    });
+
+    rows.addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-ready]');
+        if (button) {
+            event.stopPropagation();
+            button.disabled = true;
+            try {
+                await api.patch(`/turnarounds/${button.dataset.ready}`, { status: 'ready' });
+                await load(false);
+            } catch (error) {
+                button.disabled = false;
+                showError(document.getElementById('page'), error);
+            }
+            return;
+        }
+        const tr = event.target.closest('tr[data-id]');
         if (tr) {
             location.href = `/technician/checklist.html?id=${tr.dataset.id}`;
         }
     });
-    dateInput.addEventListener('change', () => load(false));
-    onlyLate.addEventListener('change', () => load(false));
+
     let first = true;
-    every(15, () => { load(!first); first = false; });
+    every(15, () => {
+        load(!first);
+        first = false;
+    });
 </script>
 </body>
 </html>

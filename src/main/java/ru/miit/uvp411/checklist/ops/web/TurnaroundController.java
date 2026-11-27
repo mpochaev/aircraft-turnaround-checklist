@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,6 +25,8 @@ import ru.miit.uvp411.checklist.ops.internal.OperationService;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundQueries;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundRequest;
 import ru.miit.uvp411.checklist.ops.internal.TurnaroundService;
+import ru.miit.uvp411.checklist.ops.internal.TurnaroundTransitionRequest;
+import ru.miit.uvp411.checklist.ops.internal.TurnaroundTransitions;
 import ru.miit.uvp411.checklist.shared.error.ApiError;
 import ru.miit.uvp411.checklist.shared.error.ApiException;
 import ru.miit.uvp411.checklist.shared.security.CurrentUser;
@@ -43,12 +46,14 @@ class TurnaroundController {
     private final TurnaroundQueries queries;
     private final OperationService operationService;
     private final TurnaroundService turnaroundService;
+    private final TurnaroundTransitions transitions;
 
     TurnaroundController(TurnaroundQueries queries, OperationService operationService,
-                         TurnaroundService turnaroundService) {
+                         TurnaroundService turnaroundService, TurnaroundTransitions transitions) {
         this.queries = queries;
         this.operationService = operationService;
         this.turnaroundService = turnaroundService;
+        this.transitions = transitions;
     }
 
     /**
@@ -83,10 +88,18 @@ class TurnaroundController {
         CurrentUser user = CurrentUser.get();
         String onlyTechnician = user.can("turnarounds.read_all") ? null : user.login();
         Paging paging = Paging.of(page, size);
-        TurnaroundQueries.Page result = queries.find(new TurnaroundQueries.Filter(
+        TurnaroundQueries.Filter filter = new TurnaroundQueries.Filter(
                 period[0], period[1], status, airlineId, aircraftId, flightNumber, standFrom, standTo,
-                onlyIssues, onlyTechnician), paging);
-        return Map.of("items", result.items(), "total", result.total());
+                onlyIssues, onlyTechnician);
+        TurnaroundQueries.Page result = queries.find(filter, paging);
+        Map<Long, List<Map<String, Object>>> operations = queries.operationsFor(
+                result.items().stream().map(item -> ((Number) item.get("id")).longValue()).toList());
+        for (Map<String, Object> item : result.items()) {
+            long id = ((Number) item.get("id")).longValue();
+            item.put("operations", operations.getOrDefault(id, List.of()));
+            item.put("allowedActions", transitions.allowedActions(item, user));
+        }
+        return Map.of("items", result.items(), "total", result.total(), "summary", queries.summary(filter));
     }
 
     @PostMapping
@@ -98,16 +111,24 @@ class TurnaroundController {
     @GetMapping("/{id}")
     Map<String, Object> one(@PathVariable long id) {
         CurrentUser user = CurrentUser.get();
-        Map<String, Object> t = queries.byId(id).orElseThrow(() -> ApiException.notFound("Оборот"));
-        if (!user.can("turnarounds.read_all") && !user.login().equals(t.get("technicianLogin"))) {
+        Map<String, Object> turnaround = queries.byId(id)
+                .orElseThrow(() -> ApiException.notFound("Оборот"));
+        if (!user.can("turnarounds.read_all") && !user.login().equals(turnaround.get("technicianLogin"))) {
             throw ApiException.notFound("Оборот");   // спецификация 7.5: чужой оборот выглядит как несуществующий
         }
-        Map<String, Object> body = new LinkedHashMap<>(t);
+        Map<String, Object> body = new LinkedHashMap<>(turnaround);
         body.put("operations", queries.operations(id).stream()
-                .map(operation -> operationService.withAllowedActions(operation, (String) t.get("status"),
-                        (String) t.get("technicianLogin"), user))
+                .map(operation -> operationService.withAllowedActions(operation, (String) turnaround.get("status"),
+                        (String) turnaround.get("technicianLogin"), user))
                 .toList());
+        body.put("allowedActions", transitions.allowedActions(turnaround, user));
         return body;
+    }
+
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAuthority('turnarounds.manage')")
+    Map<String, Object> update(@PathVariable long id, @Valid @RequestBody TurnaroundTransitionRequest request) {
+        return transitions.update(id, request);
     }
 
     private static LocalDate[] period(LocalDate dateFrom, LocalDate dateTo, LocalDate date) {
@@ -136,7 +157,7 @@ class TurnaroundController {
     }
 
     private static void validateStatuses(List<String> statuses) {
-        if (statuses != null && (statuses.isEmpty() || statuses.stream().anyMatch(s -> !STATUSES.contains(s)))) {
+        if (statuses != null && (statuses.isEmpty() || statuses.stream().anyMatch(status -> !STATUSES.contains(status)))) {
             throw ApiException.validation("status", statuses, "Список содержит неизвестный статус оборота");
         }
     }

@@ -26,7 +26,8 @@ public class TurnaroundQueries {
 
     private static final String SELECT = """
             select t.id, t.status,
-                   fa.flight_number as "arrNumber", al.iata_code as "airline", da.iata_code as "arrFrom", fa.sta,
+                   fa.flight_number as "arrNumber", al.iata_code as "airline", dal.iata_code as "depAirline",
+                   da.iata_code as "arrFrom", fa.sta,
                    fd.flight_number as "depNumber", ad.iata_code as "depTo", fd.std,
                    ac.tail_number as "aircraft", ty.code as "aircraftType", s.code as "stand",
                    u.login as "technicianLogin", u.last_name || ' ' || left(u.first_name, 1) || '.' as "technician",
@@ -40,6 +41,7 @@ public class TurnaroundQueries {
             join ops.flight fa on fa.id = t.arr_flight_id
             join ops.flight fd on fd.id = t.dep_flight_id
             join ref.airline al on al.id = fa.airline_id
+            join ref.airline dal on dal.id = fd.airline_id
             join ref.airport da on da.id = fa.dep_airport_id
             join ref.airport ad on ad.id = fd.arr_airport_id
             join ref.aircraft ac on ac.id = t.aircraft_id
@@ -57,19 +59,6 @@ public class TurnaroundQueries {
         this.jdbc = jdbc;
     }
 
-    /** Обороты, у которых рейс прилёта приходится на дату. technicianLogin = null: все обороты. */
-    public List<Map<String, Object>> byDate(LocalDate date, String technicianLogin) {
-        return Rows.clean(jdbc.sql(BASE + """
-                        where fa.sta >= :day and fa.sta < :next
-                          and (cast(:tech as varchar) is null or u.login = :tech)
-                        order by fa.sta, t.id
-                        """)
-                .param("day", date.atStartOfDay())
-                .param("next", date.plusDays(1).atStartOfDay())
-                .param("tech", technicianLogin)
-                .query().listOfRows());
-    }
-
     public record Filter(LocalDate dateFrom, LocalDate dateTo, List<String> statuses, Integer airlineId,
                          Integer aircraftId, String flightNumber, String standFrom, String standTo,
                          boolean onlyIssues, String technicianLogin) {
@@ -79,6 +68,29 @@ public class TurnaroundQueries {
     }
 
     public Page find(Filter filter, Paging paging) {
+        String where = where(filter);
+
+        long total = bind(jdbc.sql("select count(*) " + FROM + where), filter)
+                .query(Long.class).single();
+        List<Map<String, Object>> items = Rows.clean(bind(jdbc.sql(SELECT + FROM + where + "\n" + """
+                        order by fa.sta, t.id
+                        limit :size offset :offset
+                        """), filter)
+                .param("size", paging.size())
+                .param("offset", paging.offset())
+                .query().listOfRows());
+        return new Page(items, total);
+    }
+
+    public Map<String, Object> summary(Filter filter) {
+        return Rows.clean(bind(jdbc.sql("""
+                        select coalesce(sum(p.problems), 0) as problems,
+                               count(*) filter (where p.delay_risk) as "delayRisk"
+                        """ + FROM + where(filter)), filter)
+                .query().singleRow());
+    }
+
+    private static String where(Filter filter) {
         List<String> conditions = new ArrayList<>();
         conditions.add("fa.sta >= :from and fa.sta < :until");
         if (filter.statuses() != null) {
@@ -100,23 +112,18 @@ public class TurnaroundQueries {
             conditions.add("s.code <= :standTo");
         }
         if (filter.onlyIssues()) {
-            conditions.add("(p.problems > 0 or p.delay_risk)");
+            conditions.add("""
+                    (p.problems > 0 or p.delay_risk
+                     or exists (select 1 from ops.operation_exec late
+                                 where late.turnaround_id = t.id
+                                   and late.status in ('in_progress', 'done')
+                                   and coalesce(late.actual_end, localtimestamp) > late.planned_end))
+                    """);
         }
         if (filter.technicianLogin() != null) {
             conditions.add("u.login = :technicianLogin");
         }
-        String where = " where " + String.join(" and ", conditions);
-
-        long total = bind(jdbc.sql("select count(*) " + FROM + where), filter)
-                .query(Long.class).single();
-        List<Map<String, Object>> items = Rows.clean(bind(jdbc.sql(SELECT + FROM + where + "\n" + """
-                        order by fa.sta, t.id
-                        limit :size offset :offset
-                        """), filter)
-                .param("size", paging.size())
-                .param("offset", paging.offset())
-                .query().listOfRows());
-        return new Page(items, total);
+        return " where " + String.join(" and ", conditions);
     }
 
     private static JdbcClient.StatementSpec bind(JdbcClient.StatementSpec statement, Filter filter) {
@@ -151,6 +158,30 @@ public class TurnaroundQueries {
                 .stream().findFirst().map(Rows::clean);
     }
 
+    public Optional<Map<String, Object>> lockForTransition(long id) {
+        return jdbc.sql("""
+                        select t.id, t.status, t.ready_at as "readyAt",
+                               (select count(*) from ops.operation_exec e
+                                 where e.turnaround_id = t.id and e.is_mandatory and e.status = 'done')
+                                   as "mandatoryDone",
+                               (select count(*) from ops.operation_exec e
+                                 where e.turnaround_id = t.id and e.is_mandatory) as "mandatoryTotal"
+                        from ops.turnaround t
+                        where t.id = :id
+                        for update of t
+                        """)
+                .param("id", id).query().listOfRows().stream().findFirst().map(Rows::clean);
+    }
+
+    public void markReady(long id) {
+        jdbc.sql("""
+                        update ops.turnaround
+                           set status = 'ready', ready_at = localtimestamp
+                         where id = :id and status = 'in_service'
+                        """)
+                .param("id", id).update();
+    }
+
     public List<Map<String, Object>> operations(long turnaroundId) {
         return Rows.clean(jdbc.sql("""
                         select e.id, e.seq_no as "seqNo", o.code as "operationCode", o.name, e.status,
@@ -182,6 +213,44 @@ public class TurnaroundQueries {
                         """)
                 .param("id", turnaroundId)
                 .query().listOfRows());
+    }
+
+    /** Все операции для списка одним запросом, сгруппированные по обороту. */
+    public Map<Long, List<Map<String, Object>>> operationsFor(List<Long> turnaroundIds) {
+        if (turnaroundIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<Map<String, Object>>> grouped = new LinkedHashMap<>();
+        jdbc.sql("""
+                        select e.turnaround_id as "turnaroundId", e.id, e.seq_no as "seqNo",
+                               o.code as "operationCode", o.name, e.status,
+                               e.duration_min as "durationMin", e.is_mandatory as "isMandatory",
+                               e.planned_start as "plannedStart", e.planned_end as "plannedEnd",
+                               e.actual_start as "actualStart", e.actual_end as "actualEnd",
+                               case when u.id is not null then jsonb_build_object('id', u.id, 'shortName',
+                                   u.last_name || ' ' || left(u.first_name, 1) || '.') end as executor,
+                               dc.code as "delayCode", e.comment,
+                               """ + OperationQueries.WAITS_FOR + """
+                               ,
+                               case when e.actual_start is null then 0 else greatest(0,
+                                   floor(extract(epoch from (coalesce(e.actual_end, localtimestamp) - e.actual_start)) / 60)
+                                   )::integer end as "elapsedMin",
+                               case when e.status = 'not_required' then 0 else greatest(0,
+                                   floor(extract(epoch from (coalesce(e.actual_end, localtimestamp) - e.planned_end)) / 60)
+                                   )::integer end as "delayMin"
+                        from ops.operation_exec e
+                        join ref.operation o on o.id = e.operation_id
+                        left join auth.app_user u on u.id = e.executor_id
+                        left join ref.delay_code dc on dc.id = e.delay_code_id
+                        where e.turnaround_id in (:ids)
+                        order by e.turnaround_id, e.seq_no
+                        """)
+                .param("ids", turnaroundIds)
+                .query().listOfRows().stream().map(Rows::clean).forEach(operation -> {
+                    long turnaroundId = ((Number) operation.remove("turnaroundId")).longValue();
+                    grouped.computeIfAbsent(turnaroundId, ignored -> new java.util.ArrayList<>()).add(operation);
+                });
+        return grouped;
     }
 
     Optional<Map<String, Object>> flight(long id) {
